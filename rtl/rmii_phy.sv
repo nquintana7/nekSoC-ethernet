@@ -19,7 +19,7 @@ module rmii_phy (
     output logic [7:0] rx_byte_o,
     output logic rx_byte_valid_o,
     output logic byte_error_o,
-    output logic frame_start_o
+    output logic rx_active_o
 );
     // RX Signals
     logic [1:0] rx_cnt;
@@ -40,10 +40,9 @@ module rmii_phy (
             rx_byte_valid_o <= 1'b0;
             rx_cnt <= 2'd0;
             frame_error <= 1'b0;
-            frame_start_o <= 1'b1;
+            rx_active_o <= 1'b0;
         end else begin
-
-            frame_start_o <= (rx_byte_valid_o) ? 1'b0 : frame_start_o;
+            rx_active_o <= 1'b1;
 
             rx_byte_o <= {rxd_i, rx_byte_o[7:2]};
 
