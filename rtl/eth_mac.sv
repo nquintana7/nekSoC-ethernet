@@ -32,19 +32,9 @@ module eth_mac (
     logic rx_byte_valid_ff;
 
     // RX Logic
-    lfsr #(
-        .LFSR_WIDTH(32),
-        .LFSR_POLY(32'h4c11db7),
-        .LFSR_CONFIG("GALOIS"),
-        .LFSR_FEED_FORWARD(0),
-        .REVERSE(1),
-        .DATA_WIDTH(8),
-        .STYLE("AUTO")
-    )
-    eth_crc_8 (
+    lfsr_eth_crc32 eth_crc_8 (
         .data_in(rx_byte_i),
         .state_in(crc_reg),
-        .data_out(),
         .state_out(crc_next)
     );
 
@@ -55,6 +45,8 @@ module eth_mac (
             rx_byte_counter <= '0;
             crc_reg <= 32'hFFFFFFFF;
             rx_byte_valid_ff <= 1'b0;
+            rx_packet_valid_o <= 1'b0;
+            rx_ethernet_packet_o <= '0;
         end else begin
             rx_byte_valid_ff <= rx_byte_valid_i;
             
@@ -66,6 +58,7 @@ module eth_mac (
                     if (rx_active_i & !byte_error_i) begin
                         rx_state <= RX_RECEIVE;   
                     end
+                    rx_packet_valid_o <= 1'b0;
                 end 
 
                 RX_RECEIVE : begin

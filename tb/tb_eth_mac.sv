@@ -101,8 +101,8 @@ module tb_eth_mac;
         rx_byte_valid_i = 0;
 
         // Wait for MAC to process
-        #50;
-
+        @(posedge clk);
+        @(posedge clk);
         if (rx_packet_valid_o) begin
             $display("Packet received successfully!");
             $display("DST MAC: %0h", rx_packet_o.mac_dst_addr);
