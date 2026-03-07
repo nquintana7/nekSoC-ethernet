@@ -26,7 +26,6 @@ module eth_mac (
     // RX Signals
     enum logic [2:0] {RX_IDLE, RX_RECEIVE, RX_CRC_CHECK} rx_state;
 
-    logic [31:0] buffer_crc;
     logic [7:0] packet_buffer [0:MAX_FRAME_BYTELENGTH-1];
     logic [11:0] rx_byte_counter, tx_byte_counter;
     logic [31:0] crc_reg, crc_next;
@@ -74,8 +73,6 @@ module eth_mac (
                     if (rx_byte_valid_i) begin 
                         packet_buffer[rx_byte_counter] <= rx_byte_i;
                         rx_byte_counter <= rx_byte_counter + 1;
-                        
-                        buffer_crc <= {rx_byte_i, buffer_crc[31:8]};
                     end
                     
                     if (rx_byte_valid_ff) begin
@@ -101,7 +98,7 @@ module eth_mac (
                         rx_ethernet_packet_o.payload[j] <= packet_buffer[14 + j];
                     end
                     rx_ethernet_packet_o.payload_len <= rx_byte_counter - 18;
-                    rx_packet_valid_o <= (~crc_reg == 32'hC704DD7B);
+                    rx_packet_valid_o <= (crc_reg == 32'hDEBB20E3);
                     rx_state <= RX_IDLE;
                     
                 end
