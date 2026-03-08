@@ -1,3 +1,6 @@
+//
+// Manually get the 1-byte parallel combinational logic
+// 
 module lfsr_eth_crc32 (
     input  logic [7:0]  data_in,
     input  logic [31:0] state_in,
