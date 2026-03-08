@@ -78,7 +78,7 @@ module rmii_phy (
             end else begin
 
                 tx_shift_reg <= {2'd0, tx_shift_reg[7:2]};
-                tx_ready_o <= (tx_cnt == 2'd2) ? 1'b1 : tx_ready_o;
+                tx_ready_o <= (tx_cnt == 2'd2) ? 1'b1 : 1'b0;
 
             end
 

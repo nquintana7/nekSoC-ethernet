@@ -1,6 +1,6 @@
 // Store-and-Fordward in BRAM
 // Wait for crc check to decide if packet is kept or discarded
-module rx_packet_buffer #(
+module eth_rx_packet_buffer #(
     parameter ADDR_WIDTH = 12, // 4096 Bytes (Enough for ~2.7 Jumbo Frames)
     parameter DATA_WIDTH = 8
 )(
@@ -35,6 +35,8 @@ module rx_packet_buffer #(
     logic [10:0] pkt_len;
     logic metafifo_wren;
     logic metafifo_full, metafifo_empty;
+    
+    logic [10:0] pkt_rd_cnt;
 
     assign pkt_ready_o = ~metafifo_empty;
 
@@ -121,12 +123,18 @@ module rx_packet_buffer #(
             rptr <= '0;
             rptr_gray <= '0;
             data_valid_o <= 1'b0;
+            pkt_rd_cnt <= '0;
         end else begin
             data_valid_o <= 1'b0;
+            
+            if (pkt_len_rden_i) begin
+                pkt_rd_cnt <= pkt_len_o;
+            end
 
-            if (data_rden_i) begin
+            if (data_rden_i && (pkt_rd_cnt > 0) ) begin
                 rptr <= rptr + 1;
                 data_valid_o <= 1'b1;
+                pkt_rd_cnt <= pkt_rd_cnt - 1;
             end
 
             data_o <= mem[rptr[ADDR_WIDTH-1:0]];

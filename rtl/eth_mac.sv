@@ -1,120 +1,143 @@
-import eth_pkg::*;
-
 module eth_mac (
-    input logic         clk_i,
-    input logic         rstn_i,
+    input logic clk_i,
+    input logic ref_mac_clk_i,
+    input logic rstn_i,
+    input logic mac_rstn_i,
 
-    // RMI Interface
-    output logic [7:0]  phy_tx_data_o,  // Raw byte to RMII
-    output logic        phy_tx_en_o,    // Transmit Enable
-    input  logic        phy_tx_ready_i, // PHY is ready for next byte
+    // --- Physical RMII Pins ---
+    input  logic [1:0] phy_rxd_i,
+    input  logic       phy_crs_dv,
+    input  logic       phy_rxer_i,
+    output logic [1:0] phy_txd_o,
+    output logic       phy_txen_o,
 
-    input logic phy_rx_active_i,
-    input logic [7:0] phy_rx_data_i,
-    input logic phy_rx_dv_i,
-    input logic phy_rx_err_i,
-    // Higher layers interface
+    // --- Upper Layer Interface ---
+    // Transmit Side
+    input  logic [7:0]  pkt_tx_data_i,
+    input  logic        pkt_tx_wren_i,
+    input  logic        pkt_tx_commit_i,
+    output logic        pkt_tx_full_o,
 
-    output logic mac_rx_sof_o,
-    output logic mac_rx_eof_o,
-    output logic [7:0]  mac_rx_data_o,
-    output logic        mac_rx_valid_o,
-    output logic mac_rx_fcs_err_o
+    // Receive Side
+    input  logic        pkt_rx_data_rden_i,
+    input  logic        pkt_rx_len_rden_i,
+    output logic        pkt_rx_ready_o,
+    output logic [10:0] pkt_rx_len_o,
+    output logic [7:0]  pkt_rx_data_o,
+    output logic        pkt_rx_data_valid_o
 );
 
-    // RX Signals
-    enum logic [2:0] {RX_IDLE, RX_PREAMBLE, RX_RECEIVE, RX_CRC_CHECK} rx_state;
+    // ---------------------------------------------------------
+    // Internal Interconnect Wires
+    // ---------------------------------------------------------
+    
+    // Bridge <-> MACs
+    logic [7:0] rmii_mac_rx_data;
+    logic       rmii_mac_rx_valid, rmii_mac_rx_active, rmii_mac_rx_err;
+    
+    logic [7:0] rmii_mac_tx_data;
+    logic       rmii_mac_tx_valid, rmii_mac_tx_last, bridge_to_tx_mac_ready;
 
-    logic [11:0] rx_byte_counter, tx_byte_counter;
-    logic [31:0] rx_crc_reg, rx_crc_next;
-    logic phy_rx_dv_ff;
+    // MACs <-> Buffers
+    logic       rx_mac_sof, rx_mac_eof, rx_mac_valid, rx_mac_fcs_err;
+    logic [7:0] rx_mac_data;
+    
+    logic       tx_buf_start, tx_buf_last, tx_mac_rd_en, tx_mac_ready;
+    logic [7:0] tx_buf_data;
 
-    // RX Logic
-    lfsr_eth_crc32 u_eth_crc32 (
-        .data_in(phy_rx_data_i),
-        .state_in(rx_crc_reg),
-        .state_out(rx_crc_next)
+    // ---------------------------------------------------------
+    // RMII
+    // ---------------------------------------------------------
+    rmii_phy u_rmii (
+        .clk_i           (ref_mac_clk_i),
+        .rstn_i          (mac_rstn_i),
+        // To Physical Pins
+        .rxd_i           (phy_rxd_i),
+        .crs_dv          (phy_crs_dv),
+        .rxer_i          (phy_rxer_i),
+        .txd_o           (phy_txd_o),
+        .txen_o          (phy_txen_o),
+        // To MACs
+        .tx_byte_i       (rmii_mac_tx_data),
+        .tx_byte_valid_i (rmii_mac_tx_valid),
+        .tx_last_byte_i  (rmii_mac_tx_last),
+        .tx_ready_o      (bridge_to_tx_mac_ready),
+        .rx_byte_o       (rmii_mac_rx_data),
+        .rx_byte_valid_o (rmii_mac_rx_valid),
+        .rx_active_o     (rmii_mac_rx_active),
+        .byte_error_o    (rmii_mac_rx_err)
     );
 
-    always_ff @(posedge clk_i ) begin
-        
-        if (!rstn_i) begin
-            rx_state <= RX_IDLE;
-            rx_byte_counter <= '0;
-            rx_crc_reg <= 32'hFFFFFFFF;
-            phy_rx_dv_ff <= 1'b0;
-            mac_rx_eof_o <= 1'b0;
-            mac_rx_sof_o <= 1'b0;
-            mac_rx_data_o <= '0;
-            mac_rx_valid_o <= 1'b0;
-            mac_rx_fcs_err_o <= 1'b0;
-        end else begin
-            phy_rx_dv_ff <= phy_rx_dv_i;
-            mac_rx_valid_o <= 1'b0;
-            mac_rx_eof_o <= 1'b0;
-            mac_rx_sof_o <= 1'b0;
+    // ---------------------------------------------------------
+    // RX MAC + CDC BUFFER
+    // ---------------------------------------------------------
+    eth_rx_mac u_rx_mac (
+        .clk_i           (ref_mac_clk_i),
+        .rstn_i          (mac_rstn_i),
+        .phy_rx_active_i (rmii_mac_rx_active),
+        .phy_rx_data_i   (rmii_mac_rx_data),
+        .phy_rx_dv_i     (rmii_mac_rx_valid),
+        .phy_rx_err_i    (rmii_mac_rx_err),
+        .mac_rx_sof_o    (rx_mac_sof),
+        .mac_rx_eof_o    (rx_mac_eof),
+        .mac_rx_data_o   (rx_mac_data),
+        .mac_rx_valid_o  (rx_mac_valid),
+        .mac_rx_fcs_err_o(rx_mac_fcs_err)
+    );
 
-            case (rx_state)
+    eth_rx_packet_buffer #(
+        .ADDR_WIDTH(12)
+    ) u_rx_buffer (
+        .wclk_i          (ref_mac_clk_i),
+        .wrstn_i         (mac_rstn_i),
+        .mac_din         (rx_mac_data),
+        .mac_valid_i     (rx_mac_valid),
+        .mac_start_i     (rx_mac_sof),
+        .mac_end_i       (rx_mac_eof),
+        .mac_crc_fail_i  (rx_mac_fcs_err),
+        .rclk_i          (clk_i),
+        .rrstn_i         (rstn_i),
+        .data_rden_i     (pkt_rx_data_rden_i),
+        .pkt_len_rden_i  (pkt_rx_len_rden_i),
+        .pkt_ready_o     (pkt_rx_ready_o),
+        .pkt_len_o       (pkt_rx_len_o),
+        .data_o          (pkt_rx_data_o),
+        .data_valid_o    (pkt_rx_data_valid_o)
+    );
 
-                RX_IDLE: begin
+    // ---------------------------------------------------------
+    // TX MAC + CDC BUFFER
+    // ---------------------------------------------------------
+    tx_packet_buffer #(
+        .ADDR_WIDTH(12)
+    ) u_tx_buffer (
+        .pkt_clk_i       (clk_i),
+        .pkt_rstn_i      (rstn_i),
+        .pkt_data_i      (pkt_tx_data_i),
+        .pkt_wren_i      (pkt_tx_wren_i),
+        .pkt_commit_i    (pkt_tx_commit_i),
+        .pkt_fifo_full_o (pkt_tx_full_o),
+        .mac_clk_i       (ref_mac_clk_i),
+        .mac_rstn_i      (rstn_i),
+        .tx_start_o      (tx_buf_start),
+        .tx_data_o       (tx_buf_data),
+        .tx_last_o       (tx_buf_last),
+        .tx_rd_en_i      (tx_mac_rd_en),
+        .tx_ready_i      (tx_mac_ready)
+    );
 
-                    rx_crc_reg <= 32'hFFFFFFFF;
-                    rx_byte_counter <= '0;
-                    if (phy_rx_active_i & !phy_rx_err_i) begin
-                        rx_state <= RX_RECEIVE;    
-                    end
-
-                end
-
-                RX_PREAMBLE : begin
-                    
-                    if (phy_rx_data_i == 8'hD5) begin
-                        mac_rx_sof_o <= 1'b1;
-                        rx_state <= RX_RECEIVE;
-                    end else if (phy_rx_data_i != 8'h55) begin
-                        rx_state <= RX_IDLE;
-                    end
-
-                end 
-
-                RX_RECEIVE : begin
-
-                    if (phy_rx_dv_i) begin 
-                        mac_rx_data_o <= phy_rx_data_i;
-                        mac_rx_valid_o <= 1'b1;
-                        rx_byte_counter <= rx_byte_counter + 1;
-                    end
-                    
-                    if (phy_rx_dv_ff) begin
-                        rx_crc_reg <= rx_crc_next; 
-                    end
-
-                    if (!phy_rx_active_i) begin
-                        rx_state <= RX_CRC_CHECK;
-                    end
-
-                    if (phy_rx_err_i) begin
-                        rx_state <= RX_IDLE;
-                        mac_rx_fcs_err_o <= 1'b1;
-                        mac_rx_eof_o <= 1'b1;
-                    end
-
-                end
-
-                RX_CRC_CHECK : begin
-
-                    mac_rx_fcs_err_o <= (rx_crc_reg != 32'hDEBB20E3);
-                    mac_rx_eof_o <= 1'b1;
-                    rx_state <= RX_IDLE;
-                    
-                end
-
-                default: rx_state <= RX_IDLE;
-            endcase
-
-        end
-
-    end
-    // End RX Logic
+    eth_tx_mac u_tx_mac (
+        .clk_i               (ref_mac_clk_i),
+        .rstn_i              (rstn_i),
+        .tx_start_i          (tx_buf_start),
+        .tx_last_i           (tx_buf_last),
+        .tx_data_i           (tx_buf_data),
+        .tx_rd_en_o          (tx_mac_rd_en),
+        .tx_ready_o          (tx_mac_ready),
+        .phy_tx_ready_i      (bridge_to_tx_mac_ready),
+        .phy_tx_data_o       (rmii_mac_tx_data),
+        .phy_tx_valid_data_o (rmii_mac_tx_valid),
+        .phy_tx_last_byte_o  (rmii_mac_tx_last)
+    );
 
 endmodule
