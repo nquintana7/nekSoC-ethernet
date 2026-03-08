@@ -23,9 +23,6 @@ module async_fifo_sync #(
     output logic                  empty_o   // FIFO Empty flag (Pessimistic)
 );
 
-    // -----------------------------------------
-    // Internal Signals
-    // -----------------------------------------
     localparam DEPTH = 1 << ADDR_WIDTH;
     logic [DATA_WIDTH-1:0] mem [0:DEPTH-1];
 
@@ -35,10 +32,7 @@ module async_fifo_sync #(
     logic [ADDR_WIDTH:0] wq1_rptr, wq2_rptr; 
     logic [ADDR_WIDTH:0] rq1_wptr, rq2_wptr; 
 
-    // -----------------------------------------
-    // 1. Dual-Port RAM Inference
-    // -----------------------------------------
-    // Note: RAM blocks generally do not need (and shouldn't have) a reset
+
     always_ff @(posedge wclk_i) begin
         if (wen_i && !wfull) begin
             mem[wptr_bin[ADDR_WIDTH-1:0]] <= din_i;
