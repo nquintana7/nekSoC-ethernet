@@ -1,7 +1,7 @@
 # nekSoC-ethernet
 # FPGA Ethernet MAC Stack (RMII/MAC/UDP to AXI-Stream)
 
-A in-progress Ethernet MAC + UDP implementation made for my **Nexys A7**. This project implements a complete Layer 2 stack that bridges raw RMII from an Ethernet PHY signals to industry a standard AXI-Stream interface.
+A in-progress Ethernet MAC + UDP implementation made for the Tang Primer 20K. This project implements a complete Layer 2 stack that bridges raw RMII from an Ethernet PHY signals to industry a standard AXI-Stream interface.
 
 ## Current Project Status
 **Current State:** A AXI-S Ethernet MAC+RMII Interface. The design successfully transmits and receives raw Ethernet frames via AXI-Stream.
