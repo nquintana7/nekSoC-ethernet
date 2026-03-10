@@ -50,9 +50,11 @@ module tb_eth_mac_axi();
 
     task send_axis(input int len, input logic [7:0] pkt []);
         for (int i=0; i<len; i++) begin
+            @(posedge clk_100m);
             tx_tdata  <= pkt[i]; 
             tx_tvalid <= 1'b1; 
             tx_tlast  <= (i == len-1);
+            @(posedge clk_100m);
             do begin
                 @(posedge clk_100m);
             end while (!tx_tready);
