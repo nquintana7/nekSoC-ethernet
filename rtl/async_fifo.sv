@@ -12,7 +12,7 @@ module async_fifo_sync #(
     input  logic                  wen_i,    // Write Enable
     input  logic [DATA_WIDTH-1:0] din_i,   // Data in
     output logic                  wfull,   // FIFO Full flag (Pessimistic)
-
+    output logic walmost_full,
     // -----------------------------------------
     // Read Clock Domain
     // -----------------------------------------
@@ -34,7 +34,7 @@ module async_fifo_sync #(
 
 
     always_ff @(posedge wclk_i) begin
-        if (wen_i && !wfull) begin
+        if (wen_i && !wfull) begin 
             mem[wptr_bin[ADDR_WIDTH-1:0]] <= din_i;
         end
     end
@@ -113,14 +113,26 @@ module async_fifo_sync #(
         else         empty_o <= rempty_val;
     end
 
-    logic wfull_val;
+    logic wfull_val, walmost_full_val;
+    logic [ADDR_WIDTH:0] wptr_bin_plus2;
+    logic [ADDR_WIDTH:0] wptr_gray_plus2;
     always_comb begin
-        wfull_val = (wptr_gray_next == {~wq2_rptr[ADDR_WIDTH:ADDR_WIDTH-1], wq2_rptr[ADDR_WIDTH-2:0]}); // Cummings conclusion
+        wfull_val = (wptr_gray_next == {~wq2_rptr[ADDR_WIDTH:ADDR_WIDTH-1], wq2_rptr[ADDR_WIDTH-2:0]});
+
+        wptr_bin_plus2  = wptr_bin_next + 1'b1;
+        wptr_gray_plus2 = wptr_bin_plus2 ^ (wptr_bin_plus2 >> 1);
+        
+        walmost_full_val = (wptr_gray_plus2 == {~wq2_rptr[ADDR_WIDTH:ADDR_WIDTH-1], wq2_rptr[ADDR_WIDTH-2:0]});
     end
 
     always_ff @(posedge wclk_i) begin
-        if (!wrstn_i) wfull <= 1'b0;
-        else         wfull <= wfull_val;
+        if (!wrstn_i) begin
+            wfull       <= 1'b0;
+            walmost_full <= 1'b0;
+        end else begin
+            wfull       <= wfull_val;
+            walmost_full <= walmost_full_val || wfull_val;
+        end
     end
-
 endmodule
+

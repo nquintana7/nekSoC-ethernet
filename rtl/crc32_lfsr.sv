@@ -27,3 +27,4 @@ module lfsr_eth_crc32 (
     end
     
 endmodule
+

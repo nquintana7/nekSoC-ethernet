@@ -1,0 +1,44 @@
+# --- General ---
+*.log
+*.swp
+.DS_Store
+
+# --- Yosys (Synthesis) ---
+*.json
+*.blif
+*.edif
+# If you name your output netlist specifically, e.g., synth_output.v
+# synth_output.v
+
+# --- nextpnr (Place & Route) ---
+# Common nextpnr output formats
+*pnr.json
+*.asc
+*.config
+
+# --- Apycula / Gowin specific ---
+# The final bitstream file for your Tang Primer
+*.fs
+# Timing report files
+*.rpt
+*.tim
+
+# --- Verilator (Simulation) ---
+# The entire folder where Verilator compiles C++ code
+obj_dir/
+# Waveform files (these can be Gigabytes in size!)
+*.vcd
+*.fst
+*.ghw
+*.vlt
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.user
+
+# --- Python (if using Apycula/cocotb) ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/

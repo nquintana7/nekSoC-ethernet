@@ -22,6 +22,7 @@ module rmii_phy (
     output logic rx_active_o
 );
     // RX Signals
+    logic [7:0] rx_shift_reg;
     logic [1:0] rx_cnt;
     logic frame_error;
 
@@ -37,16 +38,20 @@ module rmii_phy (
     begin
         if (!rstn_i | !crs_dv) begin
             rx_byte_o <= 8'd0;
+            rx_shift_reg <= 8'd0;
             rx_byte_valid_o <= 1'b0;
             rx_cnt <= 2'd0;
             frame_error <= 1'b0;
             rx_active_o <= 1'b0;
         end else begin
             rx_active_o <= 1'b1;
+            rx_byte_valid_o <= 1'b0;
+            rx_shift_reg <= {rxd_i, rx_shift_reg[7:2]};
 
-            rx_byte_o <= {rxd_i, rx_byte_o[7:2]};
-
-            rx_byte_valid_o <= (rx_cnt == 2'd3);
+            if (rx_cnt == 2'd3) begin
+                rx_byte_o <= {rxd_i, rx_shift_reg[7:2]};
+                rx_byte_valid_o <= 1'b1;
+            end
 
             if (rxer_i) frame_error <= 1'b1;
             
@@ -91,3 +96,4 @@ module rmii_phy (
     end
     
 endmodule
+

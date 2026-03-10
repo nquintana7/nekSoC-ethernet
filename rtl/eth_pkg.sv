@@ -12,3 +12,4 @@ package eth_pkg;
     parameter MAX_FRAME_BYTELENGTH = 1518; 
 
 endpackage
+

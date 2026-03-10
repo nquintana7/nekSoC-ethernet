@@ -7,7 +7,7 @@ A in-progress Ethernet MAC + UDP implementation made for the Tang Primer 20K. Th
 **Current State:** A AXI-S Ethernet MAC+RMII Interface. The design successfully transmits and receives raw Ethernet frames via AXI-Stream.
 * Next steps: 
     - Implementation of the ARP Responder and UDP/IP Engine.
-    - Run on Nexys A7 when ARP/UDP is working
+    - Run on Tang Primer 20K when ARP/UDP is working
 
 ## Architecture
 
