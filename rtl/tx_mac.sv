@@ -28,7 +28,7 @@ module tx_mac (
 
     assign s_axis_tready = !fifo_full_i && tx_state == DATA && !data_valid_o;
 
-    always_ff@(posedge s_axis_clk) begin
+    always_ff@(posedge s_axis_clk or negedge s_axis_resetn) begin
         
         if (!s_axis_resetn) begin
             crc_reg <= 32'hFFFFFFFF;

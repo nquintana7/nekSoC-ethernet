@@ -29,7 +29,7 @@ module rx_mac (
         .state_out(crc_next)
     );
 
-    always_ff @(posedge m_axis_clk) begin
+    always_ff @(posedge m_axis_clk or negedge m_axis_resetn) begin
         
         if (!m_axis_resetn) begin
             rx_state <= IDLE;

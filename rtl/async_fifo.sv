@@ -44,7 +44,7 @@ module async_fifo_sync #(
     // -----------------------------------------
     // 2. Write Pointer & Gray Code Generation
     // -----------------------------------------
-    always_ff @(posedge wclk_i) begin
+    always_ff @(posedge wclk_i or negedge wrstn_i) begin
         if (!wrstn_i) begin
             wptr_bin  <= '0;
             wptr_gray <= '0;
@@ -62,7 +62,7 @@ module async_fifo_sync #(
     // -----------------------------------------
     // 3. Read Pointer & Gray Code Generation
     // -----------------------------------------
-    always_ff @(posedge rclk_i) begin
+    always_ff @(posedge rclk_i or negedge rrstn_i) begin
         if (!rrstn_i) begin
             rptr_bin  <= '0;
             rptr_gray <= '0;
@@ -80,7 +80,7 @@ module async_fifo_sync #(
     // -----------------------------------------
     // 4. Synchronizers (Crossing the Domains)
     // -----------------------------------------
-    always_ff @(posedge wclk_i) begin
+    always_ff @(posedge wclk_i or negedge wrstn_i) begin
         if (!wrstn_i) begin
             wq2_rptr <= '0;
             wq1_rptr <= '0;
@@ -90,7 +90,7 @@ module async_fifo_sync #(
         end
     end
 
-    always_ff @(posedge rclk_i) begin
+    always_ff @(posedge rclk_i or negedge rrstn_i) begin
         if (!rrstn_i) begin
             rq2_wptr <= '0;
             rq1_wptr <= '0;
@@ -108,7 +108,7 @@ module async_fifo_sync #(
         rempty_val = (rptr_gray_next == rq2_wptr);
     end
 
-    always_ff @(posedge rclk_i) begin
+    always_ff @(posedge rclk_i or negedge rrstn_i) begin
         if (!rrstn_i) empty_o <= 1'b1;
         else         empty_o <= rempty_val;
     end
@@ -125,7 +125,7 @@ module async_fifo_sync #(
         walmost_full_val = (wptr_gray_plus2 == {~wq2_rptr[ADDR_WIDTH:ADDR_WIDTH-1], wq2_rptr[ADDR_WIDTH-2:0]});
     end
 
-    always_ff @(posedge wclk_i) begin
+    always_ff @(posedge wclk_i or negedge wrstn_i) begin
         if (!wrstn_i) begin
             wfull       <= 1'b0;
             walmost_full <= 1'b0;

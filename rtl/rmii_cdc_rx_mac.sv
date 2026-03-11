@@ -15,7 +15,7 @@ module rmii_cdc_rx_mac (
     logic       phy_rx_active_ff, phy_rx_active_ff2;
     logic       last_dv_ff, dv_ff,   dv_ff2;
 
-    always_ff @(posedge clk_i) begin
+    always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             dv_ff     <= 1'b0;
             dv_ff2     <= 1'b0;
@@ -31,7 +31,7 @@ module rmii_cdc_rx_mac (
         end
     end
 
-    always_ff @(posedge clk_i) begin
+    always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             mac_dv_o <= 1'b0;
             mac_active_o <= 1'b0;

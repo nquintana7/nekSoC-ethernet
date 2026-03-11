@@ -34,7 +34,7 @@ module rmii_phy (
     // RX Logic
     assign byte_error_o = frame_error & rx_byte_valid_o;
 
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rstn_i)
     begin
         if (!rstn_i | !crs_dv) begin
             rx_byte_o <= 8'd0;
