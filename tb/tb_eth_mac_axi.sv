@@ -50,16 +50,16 @@ module tb_eth_mac_axi();
 
     task send_axis(input int len, input logic [7:0] pkt []);
         for (int i=0; i<len; i++) begin
-            @(posedge clk_100m);
+            @(negedge clk_100m);
             tx_tdata  <= pkt[i]; 
             tx_tvalid <= 1'b1; 
             tx_tlast  <= (i == len-1);
             @(posedge clk_100m);
-            do begin
-                @(posedge clk_100m);
-            end while (!tx_tready);
+            while (!tx_tready) begin
+                @(negedge clk_100m);
+            end
         end
-        @(posedge clk_100m); tx_tvalid <= 0; tx_tlast <= 0;
+        @(negedge clk_100m); tx_tvalid <= 0; tx_tlast <= 0;
     endtask
 
     initial begin
@@ -74,7 +74,7 @@ module tb_eth_mac_axi();
 
         logic done;
         int k;
-        k = 6;
+        k = 0;
         done = 0;
         rx_tready <= 1;
         while (!done) begin
@@ -83,11 +83,8 @@ module tb_eth_mac_axi();
 
                 if (rx_tdata !== exp[k]) begin
                     $display("[%0t] ERR: Byte %0d mismatch! Exp:%h Got:%h", $time, k, exp[k], rx_tdata);
-                end else begin
-                    $display("[%0t] OK: Byte %02d verified: %h", $time, k, rx_tdata);
                 end
                 
-
                 if (rx_tlast) begin
                     $display("[%0t] RX: TLAST detected. Packet complete. Total bytes: %0d", $time, k+1);
                     done = 1'b1;

@@ -26,7 +26,7 @@ module rmii_cdc_tx_mac (
 
     async_fifo_sync #(
         .DATA_WIDTH(9),
-        .ADDR_WIDTH(3)  
+        .ADDR_WIDTH(11)  
     ) u_tx_fifo (
         .wclk_i  (clk_i),
         .wrstn_i (rstn_i),
