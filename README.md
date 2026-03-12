@@ -4,6 +4,7 @@
 An in-progress Ethernet stack for FPGA designs. The goal is to bridge raw RMII signals from an Ethernet PHY through MAC/ARP/IPv4/UDP, and to transmit/receive data via a standard AXI-Stream interface.
 
 **Target device:** Tang Primer 20K 
+
 **Toolchain:** Verilator, Yosys, nextpnr, openFPGALoader (all open source)
 
 ## Current Project Status
