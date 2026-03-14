@@ -1,6 +1,6 @@
 import eth_pkg::*;
 
-module rx_mac (
+module eth_mac_rx (
     input logic         m_axis_clk,
     input logic         m_axis_resetn,
 

@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 
 module arp_cache (
     input logic clk_i,
@@ -9,7 +10,7 @@ module arp_cache (
 
     input logic [31:0] rd_ip_i,
     output logic [47:0] rd_mac_o,
-    output logic miss_o,
+    output logic miss_o
 );
 
     logic [79:0] cache [0:7]; // store at least 8 pairs

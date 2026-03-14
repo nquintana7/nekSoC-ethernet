@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 import eth_pkg::*;
 
 module frame_parser (
@@ -20,22 +21,19 @@ module frame_parser (
     output logic        m_axis_tdest
 );
 
-enum logic [1:0] {HEADER, DATA, IGNORE} state;
+    enum logic [1:0] {HEADER, DATA, IGNORE} state;
 
     logic [3:0]  hdr_cnt;
     logic [47:0] dest_mac;
     logic [47:0] src_mac;
     logic [7:0]  ethtype;
 
-    assign m_axis_tvalid = (state == PAYLOAD) ? s_axis_tvalid : 1'b0;
+    assign m_axis_tvalid = (state == DATA) ? s_axis_tvalid : 1'b0;
     assign m_axis_tdata  = s_axis_tdata;
     assign m_axis_tlast  = s_axis_tlast;
     assign m_axis_tuser  = {src_mac, s_axis_tuser}; 
-    assign s_axis_tready = (state == HEADER || state == DROP) ? 1'b1 : m_axis_tready;
+    assign s_axis_tready = (state == HEADER || state == IGNORE) ? 1'b1 : m_axis_tready;
 
-    // -------------------------------------------------------------------------
-    // 2. PARSER STATE MACHINE
-    // -------------------------------------------------------------------------
     always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             state        <= HEADER;
@@ -90,8 +88,10 @@ enum logic [1:0] {HEADER, DATA, IGNORE} state;
                         DATA: begin
                         end
 
-                        DROP: begin
+                        IGNORE: begin
                         end
+
+                        default : state <= HEADER;
 
                     endcase
                 end

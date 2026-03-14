@@ -1,7 +1,7 @@
 # nekSoC-ethernet
-# FPGA Ethernet Stack (RMII/MAC/UDP to AXI-Stream)
+# FPGA Ethernet Stack (RMII/MAC/UDP/IPv4 to AXI-Stream)
 
-An in-progress Ethernet stack for FPGA designs. The goal is to bridge raw RMII signals from an Ethernet PHY through MAC/ARP/IPv4/UDP, and to transmit/receive data via a standard AXI-Stream interface.
+An in-progress Ethernet modular stack. The goal is to bridge raw RMII signals from an Ethernet PHY through MAC/ARP/IPv4/UDP, and to transmit/receive data payload via a standard AXI-Stream interface.
 
 **Target device:** Tang Primer 20K 
 
@@ -9,12 +9,14 @@ An in-progress Ethernet stack for FPGA designs. The goal is to bridge raw RMII s
 
 ## Current Project Status
 **Current state:** RMII + Ethernet MAC connected to AXI-Stream.  
-The design can transmit and receive raw Ethernet frames through AXI-Stream.
+* **Rx Path Completed:** Successfully strip Ethernet, IPv4, and UDP headers. ARP Cache write on received ARP Request or Reply. Trigger reply on received request.
 
 **In progress:**
-- ARP
-- IPv4
-- UDP
+- Tx path:
+  - Frame Builder
+  - ARP
+  - IPv4
+  - UDP
 
 ## Architecture
 

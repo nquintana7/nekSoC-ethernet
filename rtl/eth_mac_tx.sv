@@ -1,4 +1,4 @@
-module tx_mac (
+module eth_mac_tx (
     input  logic        s_axis_clk,
     input  logic        s_axis_resetn,
 

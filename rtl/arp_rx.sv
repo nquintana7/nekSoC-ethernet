@@ -1,8 +1,9 @@
+`timescale 1ns/1ps
 module arp_rx (
     input  logic        clk_i,
     input  logic        rstn_i,
 
-    input logic [31:0] local_ip_i
+    input logic [31:0] local_ip_i,
 
     // AXI-Stream In (From Frame Parser)
     input  logic [7:0]  s_axis_tdata,
@@ -32,10 +33,10 @@ module arp_rx (
             opcode_reg    <= '0;
             target_ip_reg <= '0;
             wr_cache_o    <= 1'b0;
-            trigger_reply <= 1'b0;
+            trigger_reply_o <= 1'b0;
         end else begin
             wr_cache_o    <= 1'b0;
-            trigger_reply <= 1'b0;
+            trigger_reply_o <= 1'b0;
 
             if (s_axis_tvalid) begin
                 if (byte_cnt == 6 || byte_cnt == 7) begin
@@ -62,7 +63,7 @@ module arp_rx (
                         wr_cache_o <= 1'b1;
 
                         if (opcode_reg == 16'h0001 && target_ip_reg == local_ip_i) begin
-                            trigger_reply <= 1'b1;
+                            trigger_reply_o <= 1'b1;
                         end
                     
                     end

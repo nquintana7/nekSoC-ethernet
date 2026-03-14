@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module async_fifo_sync #(
+module fifo_async #(
     parameter DATA_WIDTH = 8,
     parameter ADDR_WIDTH = 4  // FIFO Depth = 2^ADDR_WIDTH
 )(

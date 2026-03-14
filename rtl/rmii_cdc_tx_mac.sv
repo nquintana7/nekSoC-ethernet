@@ -24,7 +24,7 @@ module rmii_cdc_tx_mac (
     assign phy_tx_byte_o = fifo_dout[7:0];
     assign phy_tx_last_o = fifo_dout[8];
 
-    async_fifo_sync #(
+    fifo_async #(
         .DATA_WIDTH(9),
         .ADDR_WIDTH(11)  
     ) u_tx_fifo (
