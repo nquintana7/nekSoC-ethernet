@@ -27,7 +27,7 @@ module frame_builder (
         logic [47:0] dmac;
         logic [47:0] smac;
         logic [15:0] ethtype;
-    } eth_header_t;
+    } eth_header_t; // later in eth_pkg
 
     eth_header_t header_shift;
     logic [3:0] byte_cnt;
@@ -106,7 +106,7 @@ module frame_builder (
                 end
 
                 DATA : begin
-                    state <= (m_axis_tready & m_axis_tready & m_axis_tlast) ? IDLE : state; 
+                    state <= (m_axis_tready & m_axis_tvalid & m_axis_tlast) ? IDLE : state; 
                 end
 
                 default : state <= IDLE;

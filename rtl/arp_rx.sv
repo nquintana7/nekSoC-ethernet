@@ -3,7 +3,7 @@ module arp_rx (
     input  logic        clk_i,
     input  logic        rstn_i,
 
-    input logic [31:0] local_ip_i,
+    input logic [31:0] local_ip_i, // ADD IP CHECK!
 
     // AXI-Stream In (From Frame Parser)
     input  logic [7:0]  s_axis_tdata,

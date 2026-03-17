@@ -21,3 +21,7 @@ An in-progress Ethernet modular stack. The goal is to bridge raw RMII signals fr
 ## Architecture
 
 The stack is designed with a modular, layered approach to maximize reusability and clarity.
+
+- Configurable over axi4lite:
+  - Local MAC Address
+  - Static local IPv4 address
