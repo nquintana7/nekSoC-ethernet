@@ -46,7 +46,7 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                 if (s_axis_tvalid) begin
                     header_shift.src_port <= s_axis_tuser[47:32];
                     header_shift.dst_port <= s_axis_tuser[31:16];
-                    header_shift.length   <= s_axis_tuser[15:0];
+                    header_shift.length   <= 8'd8 + s_axis_tuser[15:0];
                     header_shift.checksum <= 16'h0000;
                     m_axis_tuser <= s_axis_tuser[79:48];
                     state <= HEADER;
