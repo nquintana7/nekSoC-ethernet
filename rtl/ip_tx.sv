@@ -43,12 +43,22 @@ typedef struct packed {
 
 enum logic [2:0] {IDLE, CHECKSUM, CHECK_IP, HEADER, DATA, DROP} state;
 
+logic [19:0] constant_sum;
+logic [19:0] checksum;
+
 logic [4:0] byte_cnt;
 ipv4_header_t header_shift_reg, dest_ip_reg;
-logic [15:0] checksum_ff;
 logic [10:0] timeout_cnt;
-logic [19:0] sum_reg;
+
 assign rd_ip_o = dest_ip_reg;
+
+always_comb begin // for now these values are fixed
+    constant_sum = 20'h4500 +
+                   20'h4000 +
+                   20'h4011 +
+                   local_ip_i[31:16] + 
+                   local_ip_i[15:0];
+end
 
 always_ff @(posedge clk_i or negedge rstn_i) begin
     if (!rstn_i) begin
@@ -87,7 +97,11 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
             end
 
             CHECKSUM : begin
-
+                checksum = constant_sum + 
+                      header_shift_reg.total_length + 
+                      header_shift_reg.dst_ip[31:16] + 
+                      header_shift_reg.dst_ip[15:0]
+                header_shift_reg.checksum <= ~(checksum[15:0] + checksum[19:16]);
                 state <= CHECK_IP; 
             end
 

@@ -9,6 +9,7 @@ module udp_tx (
     output logic        s_axis_tready,
     
     // Output to IP TX
+    input   logic packet_drop_i,
     input   logic        m_axis_tready, 
     output  logic [7:0]  m_axis_tdata,
     output  logic        m_axis_tvalid,
@@ -68,10 +69,18 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
             DATA : begin
                 state <= (m_axis_tready & m_axis_tvalid & m_axis_tlast) ? IDLE : state; 
             end
+            
+            DROP : begin // assumes upper layer also gets drop signal
+                state <= IDLE;   
+            end
 
             default : state <= IDLE;
 
         endcase
+
+        if (packet_drop_i) begin
+            state <= DROP;
+        end
         
     end
 end
