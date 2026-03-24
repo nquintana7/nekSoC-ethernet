@@ -36,12 +36,15 @@ module frame_builder (
     enum logic [1:0] {IDLE, HEADER, DATA} state;
 
     always_comb begin
+
+        m_axis_tvalid     = 1'b0;
+        m_axis_tlast      = 1'b0;
+        m_axis_tdata      = 8'h00; 
+        s_udp_axis_tready = 1'b0;
+        s_arp_axis_tready = 1'b0;
         
         if (state == HEADER) begin
             m_axis_tvalid = 1'b1;
-            s_udp_axis_tready = 1'b0;
-            s_arp_axis_tready = 1'b0;
-            m_axis_tlast = 1'b0;
             m_axis_tdata = header_shift[111:104];
         end else if (state == DATA) begin
             if (pkt_type) begin
@@ -57,19 +60,13 @@ module frame_builder (
                 s_udp_axis_tready = 1'b0;
                 m_axis_tlast = s_arp_axis_tlast;
             end
-        end else begin
-            m_axis_tvalid = 1'b0;
-            s_udp_axis_tready = 1'b0;
-            s_arp_axis_tready = 1'b0;
-            m_axis_tlast = 1'b0;
-        end
+        end 
 
     end
 
     always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             byte_cnt <= 'd0;
-            sending <= 1'b0;
             pkt_type <= 1'b0;
             state <= IDLE;
             header_shift <= 'd0;
@@ -82,7 +79,7 @@ module frame_builder (
                     
                     if (s_arp_axis_tvalid | s_udp_axis_tvalid) begin
                         pkt_type <= (s_arp_axis_tvalid) ? 1'b0 : 1'b1;
-                        header_shift.dmac <= (arp_axis_tvalid) ? s_arp_axis_tuser : s_udp_axis_tuser;
+                        header_shift.dmac <= (s_arp_axis_tvalid) ? s_arp_axis_tuser : s_udp_axis_tuser;
                         header_shift.smac <= local_mac_i;
                         header_shift.ethtype <= (s_arp_axis_tvalid) ? 16'h806 : 16'h800;
                         state <= HEADER;

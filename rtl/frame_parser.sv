@@ -13,12 +13,17 @@ module frame_parser (
     input  logic        s_axis_tuser,
     output logic        s_axis_tready,
 
-    input  logic        m_axis_tready,
-    output logic [7:0]  m_axis_tdata,
-    output logic        m_axis_tvalid,
-    output logic        m_axis_tlast,
-    output logic [48:0] m_axis_tuser, // {src_mac, error}
-    output logic        m_axis_tdest
+    input  logic        m_ip_axis_tready,
+    output logic [7:0]  m_ip_axis_tdata,
+    output logic        m_ip_axis_tvalid,
+    output logic        m_ip_axis_tlast,
+    output logic [48:0] m_ip_axis_tuser, // {src_mac, error}
+
+    input  logic        m_arp_axis_tready,
+    output logic [7:0]  m_arp_axis_tdata,
+    output logic        m_arp_axis_tvalid,
+    output logic        m_arp_axis_tlast,
+    output logic [48:0] m_arp_axis_tuser // {src_mac, error}
 );
 
     enum logic [1:0] {HEADER, DATA, IGNORE} state;
@@ -27,21 +32,35 @@ module frame_parser (
     logic [47:0] dest_mac;
     logic [47:0] src_mac;
     logic [7:0]  ethtype;
+    logic        is_arp_q;
 
-    assign m_axis_tvalid = (state == DATA) ? s_axis_tvalid : 1'b0;
-    assign m_axis_tdata  = s_axis_tdata;
-    assign m_axis_tlast  = s_axis_tlast;
-    assign m_axis_tuser  = {src_mac, s_axis_tuser}; 
-    assign s_axis_tready = (state == HEADER || state == IGNORE) ? 1'b1 : m_axis_tready;
+    assign m_ip_axis_tdata  = s_axis_tdata;
+    assign m_ip_axis_tlast  = s_axis_tlast;
+    assign m_ip_axis_tuser  = {src_mac, s_axis_tuser};
+
+    assign m_arp_axis_tdata = s_axis_tdata;
+    assign m_arp_axis_tlast = s_axis_tlast;
+    assign m_arp_axis_tuser = {src_mac, s_axis_tuser};
+
+    assign m_ip_axis_tvalid  = (state == DATA && !is_arp_q) ? s_axis_tvalid : 1'b0;
+    assign m_arp_axis_tvalid = (state == DATA && is_arp_q)  ? s_axis_tvalid : 1'b0;
+
+    always_comb begin
+        if (state == HEADER || state == IGNORE) begin
+            s_axis_tready = 1'b1;
+        end else begin
+            s_axis_tready = is_arp_q ? m_arp_axis_tready : m_ip_axis_tready;
+        end
+    end
 
     always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             state        <= HEADER;
             hdr_cnt      <= '0;
-            m_axis_tdest <= 1'b0;
             dest_mac     <= '0;
             src_mac      <= '0;
             ethtype<= '0;
+            is_arp_q <= 1'b0;
         end else begin
             
             if (s_axis_tvalid && s_axis_tready) begin
@@ -68,11 +87,11 @@ module frame_parser (
                                 if (dest_mac == local_mac_addr_i || dest_mac == 48'hFF_FF_FF_FF_FF_FF) begin
 
                                     if ({ethtype, s_axis_tdata} == 16'h0800) begin
-                                        m_axis_tdest <= 1'b0; // To UDP RX
+                                        is_arp_q <= 1'b0; // To IP RX
                                         state        <= DATA;
                                     end 
                                     else if ({ethtype, s_axis_tdata} == 16'h0806) begin
-                                        m_axis_tdest <= 1'b1; // To ARP RX
+                                        is_arp_q <= 1'b1; // To ARP RX
                                         state        <= DATA;
                                     end 
                                     else begin

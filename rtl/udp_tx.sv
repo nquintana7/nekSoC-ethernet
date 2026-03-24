@@ -24,7 +24,7 @@ typedef struct packed {
     logic [15:0] checksum;
 } udp_header_t; // later in eth_pkg
 
-enum logic [1:0] {IDLE, HEADER, DATA} state;
+enum logic [2:0] {IDLE, HEADER, DATA, DROP} state;
 udp_header_t header_shift;
 logic [2:0] byte_cnt;
 assign s_axis_tready = (state == DATA) && m_axis_tready;

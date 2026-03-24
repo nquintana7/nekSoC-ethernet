@@ -37,7 +37,6 @@ module rmii_phy (
     always_ff @(posedge clk_i or negedge rstn_i)
     begin
         if (!rstn_i | !crs_dv) begin
-            rx_byte_o <= 8'd0;
             rx_shift_reg <= 8'd0;
             rx_byte_valid_o <= 1'b0;
             rx_cnt <= 2'd0;

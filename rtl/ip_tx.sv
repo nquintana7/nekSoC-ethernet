@@ -70,6 +70,7 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
         dest_ip_reg <= '0;
         packet_drop_o <= 1'b0;
         m_axis_tvalid <= 1'b0;
+        trigger_request_o <= 1'b0;
     end else begin
         packet_drop_o <= 1'b0;
         case (state)
@@ -77,6 +78,7 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
             IDLE : begin
                 byte_cnt <= 5'd0;
                 m_axis_tvalid <= 1'b0;
+                trigger_request_o <= 1'b0;
                 if (s_axis_tvalid) begin
                     header_shift_reg.version      <= 4'h4;
                     header_shift_reg.ihl          <= 4'h5;
@@ -100,7 +102,7 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                 checksum = constant_sum + 
                       header_shift_reg.total_length + 
                       header_shift_reg.dst_ip[31:16] + 
-                      header_shift_reg.dst_ip[15:0]
+                      header_shift_reg.dst_ip[15:0];
                 header_shift_reg.checksum <= ~(checksum[15:0] + checksum[19:16]);
                 state <= CHECK_IP; 
             end

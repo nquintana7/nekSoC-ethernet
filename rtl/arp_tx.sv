@@ -9,6 +9,7 @@ module arp_tx (
     input logic [31:0] dest_ip_i,
     input logic start_i,
     input logic type_i, // 0 -> request, 1 -> reply
+    output logic busy_o,
     
     // Output to Frame Builder
     input   logic        m_axis_tready, 
@@ -44,6 +45,7 @@ module arp_tx (
             m_axis_tvalid <= 1'b0;
             m_axis_tlast <= 1'b0;
             sending <= 1'b0;
+            busy_o <= 1'b0;
         end else begin
 
 
@@ -51,7 +53,9 @@ module arp_tx (
                 byte_cnt <= 'd0;
                 m_axis_tvalid <= 1'b0;
                 m_axis_tlast <= 1'b0;
+                busy_o <= 1'b0;
                 if (start_i) begin
+                    busy_o <= 1'b1;
                     shift_packet.htype <= 16'b1;
                     shift_packet.ptype <= 16'h800;
                     shift_packet.hlen <= 8'd6;
