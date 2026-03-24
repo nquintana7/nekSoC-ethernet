@@ -22,7 +22,7 @@ module arp_top ( //Tx side missing
     output  logic [7:0]  m_tx_axis_tdata,
     output  logic        m_tx_axis_tvalid,
     output  logic        m_tx_axis_tlast,
-    output  logic        m_tx_axis_tuser,
+    output  logic  [47:0]      m_tx_axis_tuser,
     input logic        m_tx_axis_tready
 );
     logic [31:0] wr_ip_s;

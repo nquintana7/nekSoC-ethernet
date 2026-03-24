@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module tb_top();
+module tb_top_eth();
 
     // --- Clocks and Resets ---
     logic clk_100m = 0;
@@ -76,7 +76,7 @@ module tb_top();
     // ==========================================
     // DUT: The Custom Hardware Stack
     // ==========================================
-    top #(
+    eth_stack_top #(
         .ADDR_WIDTH(12)
     ) u_top (
         .clk_i(clk_100m), .rstn_i(rstn),
@@ -104,14 +104,23 @@ module tb_top();
     // Frame Definitions (Bare Payloads)
     // ==========================================
     
-    // ARP PAYLOAD (28 Bytes)
-    logic [7:0] arp_payload [0:27] = '{
+    // ARP REQUEST (28 Bytes) - What the TB sends to the DUT
+    logic [7:0] arp_req_payload [0:27] = '{
         8'h00, 8'h01, 8'h08, 8'h00, 8'h06, 8'h04, 8'h00, 8'h01,   // HW/Proto details, Request(1)
         8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF,                 // Sender MAC (Remote PC)
         8'hC0, 8'hA8, 8'h01, 8'h84,                               // Sender IP: 192.168.1.132
         8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00,                 // Target MAC: Ignored for requests
         8'hC0, 8'hA8, 8'h01, 8'h41                                // Target IP: 192.168.1.65 (DUT)
     };    
+
+    // EXPECTED ARP REPLY (28 Bytes) - What the DUT should send back
+    logic [7:0] exp_arp_reply [0:27] = '{
+        8'h00, 8'h01, 8'h08, 8'h00, 8'h06, 8'h04, 8'h00, 8'h02,   // HW/Proto details, Reply(2)
+        8'h00, 8'h1A, 8'h2B, 8'h3C, 8'h4D, 8'h5E,                 // Sender MAC (DUT MAC)
+        8'hC0, 8'hA8, 8'h01, 8'h41,                               // Sender IP: 192.168.1.65 (DUT IP)
+        8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF,                 // Target MAC: Remote PC
+        8'hC0, 8'hA8, 8'h01, 8'h84                                // Target IP: 192.168.1.132
+    };
         
     // IP + UDP PAYLOAD (36 Bytes)
     logic [7:0] ip_udp_payload [0:35] = '{
@@ -141,11 +150,13 @@ module tb_top();
 
         // STEP 1: Send ARP Request (Broadcast Dest MAC)
         $display("[%0t] TB: Sending ARP Request to DUT...", $time);
-        send_arp_to_mac(28, arp_payload, 48'hFF_FF_FF_FF_FF_FF);
+        send_arp_to_mac(28, arp_req_payload, 48'hFF_FF_FF_FF_FF_FF);
         
         // STEP 2: Wait for ARP Reply from DUT on the ARP RX channel
         $display("[%0t] TB: Waiting for ARP Reply on m_arp_rx_axis...", $time);
-        wait_for_arp_reply();
+        
+        // --> NOW CHECKING AGAINST EXPECTED ARRAY <--
+        wait_for_arp_reply(28, exp_arp_reply); 
 
         #1000;
 
@@ -203,8 +214,8 @@ module tb_top();
         @(negedge clk_100m); tb_ip_tx_tvalid <= 0; tb_ip_tx_tlast <= 0;
     endtask
 
-    // Monitor split ARP RX channel for reply
-    task automatic wait_for_arp_reply();
+    // Monitor split ARP RX channel for reply AND verify data
+    task automatic wait_for_arp_reply(input int len, input logic [7:0] exp []);
         logic done = 0;
         int byte_cnt = 0;
         tb_arp_rx_tready <= 1;
@@ -212,8 +223,16 @@ module tb_top();
         while (!done) begin
             @(posedge clk_100m);
             if (tb_arp_rx_tvalid && tb_arp_rx_tready) begin
+                
+                // Check the byte against expected array
+                if (byte_cnt < len) begin
+                    if (tb_arp_rx_tdata !== exp[byte_cnt]) begin
+                        $display("[%0t] ARP ERR: Byte %0d mismatch! Exp:%h Got:%h", $time, byte_cnt, exp[byte_cnt], tb_arp_rx_tdata);
+                    end
+                end
+                
                 if (tb_arp_rx_tlast) begin
-                    $display("[%0t] TB: ARP Reply Received! Length: %0d bytes", $time, byte_cnt+1);
+                    $display("[%0t] TB: ARP Reply Received & Verified! Length: %0d bytes", $time, byte_cnt+1);
                     done = 1;
                 end
                 byte_cnt++;

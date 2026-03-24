@@ -8,20 +8,13 @@ An in-progress Ethernet modular stack. The goal is to bridge raw RMII signals fr
 **Toolchain:** Verilator, Yosys, nextpnr, openFPGALoader (all open source)
 
 ## Current Project Status
-**Current state:** RMII + Ethernet MAC connected to AXI-Stream.  
-* **Rx Path Completed:** Successfully strip Ethernet, IPv4, and UDP headers. ARP Cache write on received ARP Request or Reply. Trigger reply on received request.
-
-**In progress:**
-- Tx path:
-  - Frame Builder
-  - ARP
-  - IPv4
-  - UDP
+* **Full Path Completed in Simulation:** Builds/Parses Ethernet ARP/IP/UDP Packets. 
+Replies to ARP requests, saves in arp cache IP/MAC pairs. Triggers request if MAC address for IP packet not found.
 
 ## Architecture
 
 The stack is designed with a modular, layered approach to maximize reusability and clarity.
 
-- Configurable over axi4lite:
+- To be configurable over axi4lite:
   - Local MAC Address
   - Static local IPv4 address

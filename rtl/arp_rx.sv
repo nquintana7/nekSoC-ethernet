@@ -62,7 +62,7 @@ module arp_rx (
                         
                         wr_cache_o <= 1'b1;
 
-                        if (opcode_reg == 16'h0001 && target_ip_reg == local_ip_i) begin
+                        if (opcode_reg == 16'h0001 && {target_ip_reg[23:0], s_axis_tdata} == local_ip_i) begin
                             trigger_reply_o <= 1'b1;
                         end
                     

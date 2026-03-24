@@ -39,7 +39,7 @@ module udp_ip_top (
     output logic [7:0]  mac_arp_tx_tdata,
     output logic        mac_arp_tx_tvalid,
     output logic        mac_arp_tx_tlast,
-    output logic        mac_arp_tx_tuser,
+    output logic [47:0] mac_arp_tx_tuser,
 
     // MAC Frame Parser -> IP RX
     input  logic [7:0]  mac_ip_rx_tdata,
