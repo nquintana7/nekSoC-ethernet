@@ -1,8 +1,6 @@
 `timescale 1ns / 1ps
 
-module eth_stack_top #(
-    parameter ADDR_WIDTH = 12 // 4KB buffers for the MAC
-)(
+module eth_stack_top (
     // --- System Clock and Reset ---
     input  logic        clk_i,
     input  logic        rstn_i,
@@ -129,9 +127,7 @@ module eth_stack_top #(
     );
 
     // MAC Layer (Ethernet + RMII PHY)
-    eth_mac_axi_top #(
-        .ADDR_WIDTH(ADDR_WIDTH)
-    ) u_eth_mac_axi_top (
+    eth_mac_axi_top u_eth_mac_axi_top (
         .clk_i                (clk_i),
         .rstn_i               (rstn_i),
         .clk_50M_i            (clk_50M_i),

@@ -60,7 +60,7 @@ module udp_ip_top (
     logic [7:0]  udp_ip_tx_tdata;
     logic        udp_ip_tx_tvalid;
     logic        udp_ip_tx_tlast;
-    logic [31:0] udp_ip_tx_tuser;
+    logic [47:0] udp_ip_tx_tuser;
     logic        udp_ip_tx_tready;
     logic        ip_udp_tx_packet_drop;
 
@@ -114,7 +114,7 @@ module udp_ip_top (
         .s_axis_tvalid     (udp_ip_tx_tvalid),
         .s_axis_tlast      (udp_ip_tx_tlast),
         // Zero-padding the length. 
-        .s_axis_tuser      ({16'd0, udp_ip_tx_tuser}), 
+        .s_axis_tuser      (udp_ip_tx_tuser), 
         .s_axis_tready     (udp_ip_tx_tready),
         .packet_drop_o     (ip_udp_tx_packet_drop),
         

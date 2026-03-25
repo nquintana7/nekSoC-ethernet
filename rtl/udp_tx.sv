@@ -14,7 +14,7 @@ module udp_tx (
     output  logic [7:0]  m_axis_tdata,
     output  logic        m_axis_tvalid,
     output  logic        m_axis_tlast,
-    output  logic [31:0] m_axis_tuser // dest ip
+    output  logic [47:0] m_axis_tuser // dest ip
 );
 
 typedef struct packed {
@@ -30,7 +30,7 @@ logic [2:0] byte_cnt;
 assign s_axis_tready = (state == DATA) && m_axis_tready;
 assign m_axis_tvalid = (state == HEADER) || ( (state == DATA) & s_axis_tvalid );
 assign m_axis_tlast  = (state == DATA) && s_axis_tlast;
-
+assign m_axis_tdata  = (state == DATA) ? s_axis_tdata : header_shift[63:56];
 always_ff @(posedge clk_i or negedge rstn_i) begin
     if (!rstn_i) begin
         byte_cnt <= 'd0;
@@ -49,7 +49,7 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                     header_shift.dst_port <= s_axis_tuser[31:16];
                     header_shift.length   <= 8'd8 + s_axis_tuser[15:0];
                     header_shift.checksum <= 16'h0000;
-                    m_axis_tuser <= s_axis_tuser[79:48];
+                    m_axis_tuser <= {s_axis_tuser[79:48], 8'd8 + s_axis_tuser[15:0]};
                     state <= HEADER;
                 end
 
@@ -59,7 +59,6 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                 if (m_axis_tready) begin
                     header_shift <= {header_shift[55:0], 8'h00};
                     byte_cnt     <= byte_cnt + 1;
-                    
                     if (byte_cnt == 3'd7) begin
                         state <= DATA;
                     end

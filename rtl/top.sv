@@ -1,178 +1,154 @@
-`timescale 1ns / 1ps
-
-module top #(
-    parameter ADDR_WIDTH = 12 // 4KB buffers for the MAC
-)(
-    // --- System Clock and Reset ---
-    input  logic        clk_i,
-    input  logic        rstn_i,
-    input  logic        clk_50M_i,    // RMII Clock
-    input  logic        rstn_500M_i,  // RMII Reset
-
-    // --- System Configuration ---
-    input  logic [31:0] local_ip_i,
-    input  logic [47:0] local_mac_i,
-
-    // --- Physical RMII Pins ---
-    output logic [1:0]  rmii_txd_o,
-    output logic        rmii_tx_en_o,
-    input  logic [1:0]  rmii_rxd_i,
-    input  logic        rmii_crs_dv_i,
-    input  logic        rmii_rxer_i,
-
-    // App to UDP TX
-    input  logic [7:0]  app_tx_tdata,
-    input  logic        app_tx_tvalid,
-    input  logic        app_tx_tlast,
-    input  logic [79:0] app_tx_tuser, // [dest_ip, src_port, dest_port, length]
-    output logic        app_tx_tready,
-    output logic        pkt_drop_o,
-
-    // UDP RX to App
-    input  logic        app_rx_tready,
-    output logic [7:0]  app_rx_tdata,
-    output logic        app_rx_tvalid,
-    output logic        app_rx_tlast,
-    output logic [47:0] app_rx_tuser, // {Source IP, Source Port}
-
-    // App/UDP Rx Port Checks
-    input  logic        port_en_i,
-    output logic [15:0] port_o
+module rmii_udp_loopback_top (
+    // --- Physical RMII Pins (matching board.cst) ---
+    input  logic       rst,
+    input  logic       netrmii_clk50m,
+    output logic       phyrst,
+    output logic [1:0] netrmii_txd,
+    output logic       netrmii_txen,
+    input  logic       netrmii_rx_crs,
+    input  logic [1:0] netrmii_rxd,
+    output logic       netrmii_mdc,
+    inout  logic       netrmii_mdio
 );
 
-    // IP TX Stream (UDP/IP -> MAC)
-    logic [7:0]  ip_tx_tdata;
-    logic        ip_tx_tvalid;
-    logic        ip_tx_tlast;
-    logic [47:0] ip_tx_tuser;
-    logic        ip_tx_tready;
+    // --- Reset Generation ---
+    logic [7:0] rst_cnt = 0;
 
-    // ARP TX Stream (UDP/IP -> MAC)
-    logic [7:0]  arp_tx_tdata;
-    logic        arp_tx_tvalid;
-    logic        arp_tx_tlast;
-    logic        arp_tx_tuser;
-    logic        arp_tx_tready;
+    assign phyrst = rst; // Release PHY reset when system is ready
 
-    // IP RX Stream (MAC -> UDP/IP)
-    logic [7:0]  ip_rx_tdata;
-    logic        ip_rx_tvalid;
-    logic        ip_rx_tlast;
-    logic        ip_rx_tuser;
-    logic        ip_rx_tready;
+    // Tie off unused MDIO interface
+    assign netrmii_mdc  = 1'b0;
+    assign netrmii_mdio = 1'bz;
 
-    // ARP RX Stream (MAC -> UDP/IP)
-    logic [7:0]  arp_rx_tdata;
-    logic        arp_rx_tvalid;
-    logic        arp_rx_tlast;
-    logic        arp_rx_tuser;
-    logic        arp_rx_tready;
+    // --- System Configuration Constants ---
+    logic [31:0] local_ip  = {8'd192, 8'd168, 8'd1, 8'd10}; // 192.168.1.10
+    logic [47:0] local_mac = 48'h00_1A_2B_3C_4D_5E;
 
-    // ==========================================
-    // Module Instantiations
-    // ==========================================
+    // --- AXI-Stream Signals ---
+    logic        app_tx_tvalid, app_tx_tlast, app_tx_tready;
+    logic [7:0]  app_tx_tdata;
+    logic [79:0] app_tx_tuser;
+    logic        pkt_drop;
 
-    // Protocol Stack (UDP + IP + ARP)
-    udp_ip_top u_udp_ip_top (
-        .clk_i             (clk_i),
-        .rstn_i            (rstn_i),
+    logic        app_rx_tready, app_rx_tvalid, app_rx_tlast;
+    logic [7:0]  app_rx_tdata;
+    logic [47:0] app_rx_tuser;
 
-        .local_ip_i        (local_ip_i),
-        .local_mac_i       (local_mac_i),
+    logic        port_en;
+    logic [15:0] listen_port;
 
-        // App TX
-        .app_tx_tdata      (app_tx_tdata),
-        .app_tx_tvalid     (app_tx_tvalid),
-        .app_tx_tlast      (app_tx_tlast),
-        .app_tx_tuser      (app_tx_tuser),
-        .app_tx_tready     (app_tx_tready),
-        .pkt_drop_o        (pkt_drop_o),
+    logic clk125;
 
-        // App RX
-        .app_rx_tready     (app_rx_tready),
-        .app_rx_tdata      (app_rx_tdata),
-        .app_rx_tvalid     (app_rx_tvalid),
-        .app_rx_tlast      (app_rx_tlast),
-        .app_rx_tuser      (app_rx_tuser),
-
-        // Port Checks
-        .port_en_i         (port_en_i),
-        .port_o            (port_o),
-
-        // IP TX -> MAC
-        .mac_ip_tx_tready  (ip_tx_tready),
-        .mac_ip_tx_tdata   (ip_tx_tdata),
-        .mac_ip_tx_tvalid  (ip_tx_tvalid),
-        .mac_ip_tx_tlast   (ip_tx_tlast),
-        .mac_ip_tx_tuser   (ip_tx_tuser),
-
-        // ARP TX -> MAC
-        .mac_arp_tx_tready (arp_tx_tready),
-        .mac_arp_tx_tdata  (arp_tx_tdata),
-        .mac_arp_tx_tvalid (arp_tx_tvalid),
-        .mac_arp_tx_tlast  (arp_tx_tlast),
-        .mac_arp_tx_tuser  (arp_tx_tuser),
-
-        // MAC -> IP RX
-        .mac_ip_rx_tdata   (ip_rx_tdata),
-        .mac_ip_rx_tvalid  (ip_rx_tvalid),
-        .mac_ip_rx_tlast   (ip_rx_tlast),
-        .mac_ip_rx_tuser   (ip_rx_tuser),
-        .mac_ip_rx_tready  (ip_rx_tready),
-
-        // MAC -> ARP RX
-        .mac_arp_rx_tdata  (arp_rx_tdata),
-        .mac_arp_rx_tvalid (arp_rx_tvalid),
-        .mac_arp_rx_tlast  (arp_rx_tlast),
-        .mac_arp_rx_tuser  (arp_rx_tuser),
-        .mac_arp_rx_tready (arp_rx_tready)
+    Gowin_rPLL your_instance_name(
+        .clkout(clk125), //output clkout
+        .clkin(netrmii_clk50m) //input clkin
     );
 
-    // MAC Layer (Ethernet + RMII PHY)
-    eth_mac_axi_top #(
-        .ADDR_WIDTH(ADDR_WIDTH)
-    ) u_eth_mac_axi_top (
-        .clk_i                (clk_i),
-        .rstn_i               (rstn_i),
-        .clk_50M_i            (clk_50M_i),
-        .rstn_500M_i          (rstn_500M_i),
-        
-        .local_mac_i          (local_mac_i),
-        
-        // RMII Pins
-        .rmii_txd_o           (rmii_txd_o),
-        .rmii_tx_en_o         (rmii_tx_en_o),
-        .rmii_rxd_i           (rmii_rxd_i),
-        .rmii_crs_dv_i        (rmii_crs_dv_i),
-        .rmii_rxer_i          (rmii_rxer_i),
+    // --- Instantiate Ethernet Stack ---
+    eth_stack_top u_eth_stack (
+        .clk_i         (clk125),
+        .rstn_i        (rst),
+        .clk_50M_i     (netrmii_clk50m),
+        .rstn_500M_i   (rst),
 
-        // IP TX from UDP/IP
-        .s_ip_tx_axis_tdata   (ip_tx_tdata),
-        .s_ip_tx_axis_tvalid  (ip_tx_tvalid),
-        .s_ip_tx_axis_tlast   (ip_tx_tlast),
-        .s_ip_tx_axis_tuser   (ip_tx_tuser),
-        .s_ip_tx_axis_tready  (ip_tx_tready),
-        
-        // ARP TX from UDP/IP (Zero-padding the 1-bit tuser to 48 bits)
-        .s_arp_tx_axis_tdata  (arp_tx_tdata),
-        .s_arp_tx_axis_tvalid (arp_tx_tvalid),
-        .s_arp_tx_axis_tlast  (arp_tx_tlast),
-        .s_arp_tx_axis_tuser  ({47'd0, arp_tx_tuser}), 
-        .s_arp_tx_axis_tready (arp_tx_tready),
+        .local_ip_i    (local_ip),
+        .local_mac_i   (local_mac),
 
-        // IP RX to UDP/IP
-        .m_ip_rx_axis_tdata   (ip_rx_tdata),
-        .m_ip_rx_axis_tvalid  (ip_rx_tvalid),
-        .m_ip_rx_axis_tlast   (ip_rx_tlast),
-        .m_ip_rx_axis_tuser   (ip_rx_tuser),
-        .m_ip_rx_axis_tready  (ip_rx_tready),
-        
-        // ARP RX to UDP/IP
-        .m_arp_rx_axis_tdata  (arp_rx_tdata),
-        .m_arp_rx_axis_tvalid (arp_rx_tvalid),
-        .m_arp_rx_axis_tlast  (arp_rx_tlast),
-        .m_arp_rx_axis_tuser  (arp_rx_tuser),
-        .m_arp_rx_axis_tready (arp_rx_tready)
+        .rmii_txd_o    (netrmii_txd),
+        .rmii_tx_en_o  (netrmii_txen),
+        .rmii_rxd_i    (netrmii_rxd),
+        .rmii_crs_dv_i (netrmii_rx_crs),
+        .rmii_rxer_i   (1'b0), // Tied to 0 (not mapped in your CST)
+
+        .app_tx_tdata  (app_tx_tdata),
+        .app_tx_tvalid (app_tx_tvalid),
+        .app_tx_tlast  (app_tx_tlast),
+        .app_tx_tuser  (app_tx_tuser),
+        .app_tx_tready (app_tx_tready),
+        .pkt_drop_o    (pkt_drop),
+
+        .app_rx_tready (app_rx_tready),
+        .app_rx_tdata  (app_rx_tdata),
+        .app_rx_tvalid (app_rx_tvalid),
+        .app_rx_tlast  (app_rx_tlast),
+        .app_rx_tuser  (app_rx_tuser),
+
+        .port_en_i     (1'b1),
+        .port_o        ()
     );
+
+    // --- UDP Store-and-Forward Loopback Logic ---
+    typedef enum logic [1:0] {IDLE, RX_PKT, TX_PKT} state_t;
+    state_t state;
+
+    logic [7:0]  pkt_buffer [0:2047]; // 2KB buffer for MTU
+    logic [10:0] rx_ptr;
+    logic [10:0] tx_ptr;
+    logic [10:0] pkt_length;
+    logic [47:0] saved_rx_tuser;
+
+    assign app_rx_tready = (state == IDLE) || (state == RX_PKT);
+
+    always_ff @(posedge clk125) begin
+        if (!rst) begin
+            state         <= IDLE;
+            app_tx_tvalid <= 1'b0;
+            app_tx_tlast  <= 1'b0;
+            rx_ptr        <= '0;
+            tx_ptr        <= '0;
+        end else begin
+            case (state)
+                IDLE: begin
+                    rx_ptr <= '0;
+                    if (app_rx_tvalid && app_rx_tready) begin
+                        pkt_buffer[0]  <= app_rx_tdata;
+                        saved_rx_tuser <= app_rx_tuser; // Capture {Source IP, Source Port}
+                        rx_ptr         <= 11'd1;
+                        state          <= app_rx_tlast ? TX_PKT : RX_PKT;
+                        pkt_length     <= app_rx_tlast ? 11'd1 : '0;
+                    end
+                end
+
+                RX_PKT: begin
+                    if (app_rx_tvalid && app_rx_tready) begin
+                        pkt_buffer[rx_ptr] <= app_rx_tdata;
+                        rx_ptr             <= rx_ptr + 11'd1;
+                        if (app_rx_tlast) begin
+                            pkt_length <= rx_ptr + 11'd1;
+                            state      <= TX_PKT;
+                            tx_ptr     <= '0;
+                        end
+                    end
+                end
+
+                TX_PKT: begin
+                    app_tx_tvalid <= 1'b1;
+                    app_tx_tdata  <= pkt_buffer[tx_ptr];
+                    app_tx_tlast  <= (tx_ptr == (pkt_length - 11'd1));
+                    
+                    // Route back to sender: [Dest IP (32), Src Port (16), Dest Port (16), Length (16)]
+                    app_tx_tuser  <= {
+                        saved_rx_tuser[47:16], // Dest IP = Sender's IP
+                        16'd1234,           // Src Port = Our local port
+                        saved_rx_tuser[15:0],  // Dest Port = Sender's Port
+                        16'(pkt_length)        // Payload Length
+                    };
+
+                    if (app_tx_tready && app_tx_tvalid) begin
+                        if (app_tx_tlast) begin
+                            app_tx_tvalid <= 1'b0;
+                            app_tx_tlast  <= 1'b0;
+                            state         <= IDLE;
+                        end else begin
+                            tx_ptr <= tx_ptr + 11'd1;
+                        end
+                    end
+                end
+                
+                default: state <= IDLE;
+            endcase
+        end
+    end
 
 endmodule
+

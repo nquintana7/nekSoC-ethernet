@@ -38,12 +38,12 @@ module arp_tx (
 
     assign m_axis_tdata = shift_packet[223:216];
     assign m_axis_tlast = sending && byte_cnt == 27 && m_axis_tvalid;
+    assign m_axis_tvalid = sending;
 
     always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             byte_cnt      <= '0;
             shift_packet <= '0;
-            m_axis_tvalid <= 1'b0;
             sending <= 1'b0;
             busy_o <= 1'b0;
         end else begin
@@ -51,7 +51,6 @@ module arp_tx (
 
             if (!sending) begin
                 byte_cnt <= 'd0;
-                m_axis_tvalid <= 1'b0;
                 busy_o <= 1'b0;
                 if (start_i) begin
                     busy_o <= 1'b1;
@@ -68,7 +67,6 @@ module arp_tx (
                     sending <= 1'b1;
                 end
             end else begin
-                m_axis_tvalid <= 1'b1;
                 
                 if (m_axis_tready) begin
                     

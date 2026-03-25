@@ -1,6 +1,4 @@
-module eth_mac_axi_top #(
-    parameter ADDR_WIDTH = 12 // 4KB buffers
-)(
+module eth_mac_axi_top (
     // --- Clock and Reset ---
     input  logic        clk_i,
     input  logic        rstn_i,

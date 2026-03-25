@@ -21,6 +21,7 @@ module arp_cache (
         
         if (!rstn_i) begin
             oldest <= '0; 
+            flags <= '0;
         end else if (store_pair_i) begin
             logic stop;
             logic found;
@@ -29,28 +30,29 @@ module arp_cache (
             stop = 0;
 
             for (int i = 0; i < 8; i++) begin
-                if (!flags[i]) begin
-                    cache[i][79:48] <= wr_mac_i;
+                if (!flags[i] & !stop) begin
+                    cache[i] <= {wr_mac_i, wr_ip_i};
+                    flags[i] <= 1'b1;
                     stop = 1'b1;
                 end    
             end
 
-            if (!stop) begin
+//            if (!stop) begin
 
-                for (int i = 0; i < 8; i++) begin
-                    if (!flags[i] && !stop) begin
-                        cache[i]      <= {wr_mac_i, wr_ip_i};
-                        flags[i] <= 1'b1;
-                        found     = 1'b1;
-                    end
-                end
+//                for (int i = 0; i < 8; i++) begin
+//                    if (!flags[i] && !stop) begin
+//                        cache[i]      <= {wr_mac_i, wr_ip_i};
+//                        flags[i] <= 1'b1;
+//                        found     = 1'b1;
+//                    end
+//                end
 
-                if (!found) begin // later replace this for least used one 
+                if (!stop) begin 
                     cache[oldest] <= {wr_mac_i, wr_ip_i};
-                    oldest <= oldest + 1;
-                end
+                    oldest        <= oldest + 1'b1;
+               end
 
-            end
+//            end
 
         end
     end
@@ -60,7 +62,7 @@ module arp_cache (
         rd_mac_o = 48'h0;
         for (int i = 0; i < 8; i++) begin
             if (flags[i] && (cache[i][31:0] == rd_ip_i)) begin
-                rd_mac_o = cache[i][79:48];
+                rd_mac_o = cache[i][79:32];
                 miss_o   = 1'b0;
             end
         end
