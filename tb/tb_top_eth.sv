@@ -40,9 +40,7 @@ module tb_top_eth();
     // ==========================================
     // Remote PC MAC (Testbench Stimulus)
     // ==========================================
-    eth_mac_axi_top #(
-        .ADDR_WIDTH(12)
-    ) u_tb_mac (
+    eth_mac_axi_top u_tb_mac (
         .clk_i(clk_100m), .rstn_i(rstn),
         .clk_50M_i(clk_50m), .rstn_500M_i(rstn),
         .local_mac_i(REMOTE_MAC), // TB's MAC Address
@@ -76,9 +74,7 @@ module tb_top_eth();
     // ==========================================
     // DUT: The Custom Hardware Stack
     // ==========================================
-    eth_stack_top #(
-        .ADDR_WIDTH(12)
-    ) u_top (
+    eth_stack_top u_top (
         .clk_i(clk_100m), .rstn_i(rstn),
         .clk_50M_i(clk_50m), .rstn_500M_i(rstn),
 
