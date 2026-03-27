@@ -53,6 +53,8 @@ logic [10:0] timeout_cnt;
 assign rd_ip_o = dest_ip_reg;
 
 assign m_axis_tdata = (state == DATA) ? s_axis_tdata : header_shift_reg[159:152];
+assign m_axis_tlast  = (state == DATA) ? s_axis_tlast : 1'b0;
+assign s_axis_tready = (state == DATA ) ?  m_axis_tready : 1'b0;
 
 always_comb begin // for now these values are fixed
     constant_sum = 20'h4500 +
@@ -60,6 +62,12 @@ always_comb begin // for now these values are fixed
                    20'h4011 +
                    local_ip_i[31:16] + 
                    local_ip_i[15:0];
+    m_axis_tvalid = 1'b0;
+    if (state == HEADER) begin
+        m_axis_tvalid = 1'b1;   
+    end else if (state == DATA) begin
+        m_axis_tvalid = s_axis_tvalid;
+    end 
 end
 
 always_ff @(posedge clk_i or negedge rstn_i) begin
@@ -71,18 +79,13 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
         header_shift_reg <= '0;
         dest_ip_reg <= '0;
         packet_drop_o <= 1'b0;
-        m_axis_tvalid <= 1'b0;
         trigger_request_o <= 1'b0;
-        s_axis_tready <= 1'b0;
     end else begin
         packet_drop_o <= 1'b0;
-        m_axis_tlast <= 1'b0;
-        s_axis_tready <= 1'b0;
         case (state)
 
             IDLE : begin
                 byte_cnt <= 5'd0;
-                m_axis_tvalid <= 1'b0;
                 trigger_request_o <= 1'b0;
                 if (s_axis_tvalid) begin
                     header_shift_reg.version      <= 4'h4;
@@ -121,7 +124,6 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                 end else begin
                     state <= HEADER;
                     m_axis_tuser <= rd_mac_i;
-                    m_axis_tvalid <= 1'b1;
                 end
 
             end
@@ -130,7 +132,6 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                 if (m_axis_tready) begin
                     header_shift_reg <= {header_shift_reg[151:0], 8'h00};
                     byte_cnt     <= byte_cnt + 1;
-                    m_axis_tvalid <= 1'b1;
                     if (byte_cnt == 5'd19) begin
                         state <= DATA;
                     end
@@ -138,9 +139,6 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
             end
 
             DATA : begin
-                s_axis_tready <= m_axis_tready;
-                m_axis_tvalid <= s_axis_tvalid;
-                m_axis_tlast  <= s_axis_tlast;
                 state <= (m_axis_tready & m_axis_tvalid & m_axis_tlast) ? IDLE : state; 
             end
 
