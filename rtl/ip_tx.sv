@@ -47,7 +47,8 @@ logic [19:0] constant_sum;
 logic [19:0] checksum;
 
 logic [4:0] byte_cnt;
-ipv4_header_t header_shift_reg, dest_ip_reg;
+ipv4_header_t header_shift_reg;
+logic [31:0] dest_ip_reg;
 logic [10:0] timeout_cnt;
 
 assign rd_ip_o = dest_ip_reg;
@@ -82,6 +83,8 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
         trigger_request_o <= 1'b0;
     end else begin
         packet_drop_o <= 1'b0;
+        m_axis_tuser <= rd_mac_i;
+
         case (state)
 
             IDLE : begin
@@ -107,11 +110,10 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
             end
 
             CHECKSUM : begin
-                checksum = constant_sum + 
+                checksum <= constant_sum + 
                       header_shift_reg.total_length + 
                       header_shift_reg.dst_ip[31:16] + 
                       header_shift_reg.dst_ip[15:0];
-                header_shift_reg.checksum <= ~(checksum[15:0] + checksum[19:16]);
                 state <= CHECK_IP; 
             end
 
@@ -123,7 +125,7 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                     state <= DROP;
                 end else begin
                     state <= HEADER;
-                    m_axis_tuser <= rd_mac_i;
+                    header_shift_reg.checksum <= ~(checksum[15:0] + checksum[19:16]);
                 end
 
             end

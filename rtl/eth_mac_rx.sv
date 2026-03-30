@@ -96,7 +96,6 @@ module eth_mac_rx (
                         m_axis_tvalid <= 1'b1;
                         m_axis_tlast  <= 1'b1; 
                         m_axis_tuser <= (crc_reg != 32'hDEBB20E3);
-
                         rx_state <= IDLE;
                         data_shift_cnt <= '0;
 
@@ -106,6 +105,14 @@ module eth_mac_rx (
 
                 default: rx_state <= IDLE;
             endcase
+
+            
+            if (rx_state == PREAMBLE && !phy_rx_active_i) begin
+
+                rx_state <= IDLE;
+                data_shift_cnt <= '0;
+
+            end
 
             // if ((m_axis_tvalid && !m_axis_tready) || phy_rx_err_i) begin
             //     rx_state <= IDLE;

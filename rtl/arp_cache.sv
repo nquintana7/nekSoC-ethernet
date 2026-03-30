@@ -16,6 +16,7 @@ module arp_cache (
     logic [79:0] cache [0:7]; // store at least 8 pairs
     logic [7:0] flags;
     logic [2:0] oldest;
+    logic [3:0] select_rd;
     
     always_ff@(posedge clk_i or negedge rstn_i) begin
         
@@ -57,15 +58,27 @@ module arp_cache (
         end
     end
     
-    always_comb begin
-        miss_o   = 1'b1;
-        rd_mac_o = 48'h0;
+always_ff @(posedge clk_i or negedge rstn_i) begin
+    if (!rstn_i) begin
+        miss_o   <= 1'b1;
+        rd_mac_o <= 48'h0;
+        select_rd <= '0;
+    end else begin
+        // Default values for the clock cycle
+        select_rd <= '0;
+        miss_o   <= select_rd == '0;
+        rd_mac_o <= 48'h0;
+
+        // Parallel search, but the result is locked into a flip-flop
         for (int i = 0; i < 8; i++) begin
             if (flags[i] && (cache[i][31:0] == rd_ip_i)) begin
-                rd_mac_o = cache[i][79:32];
-                miss_o   = 1'b0;
+                select_rd <= i;
             end
         end
+
+        
+        rd_mac_o <= cache[select_rd][79:32];
     end
+end
 
 endmodule

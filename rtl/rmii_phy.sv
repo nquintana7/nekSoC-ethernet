@@ -34,9 +34,18 @@ module rmii_phy (
     // RX Logic
     assign byte_error_o = frame_error & rx_byte_valid_o;
 
+    logic rx_is_active;
+    assign rx_is_active = crs_dv | crs_dv_d;
+
+    logic crs_dv_d;
+    always_ff @(posedge clk_i or negedge rstn_i) begin
+        if (!rstn_i) crs_dv_d <= 1'b0;
+        else crs_dv_d <= crs_dv;
+    end
+
     always_ff @(posedge clk_i or negedge rstn_i)
     begin
-        if (!rstn_i | !crs_dv) begin
+        if (!rstn_i | !rx_is_active) begin
             rx_shift_reg <= 8'd0;
             rx_byte_valid_o <= 1'b0;
             rx_cnt <= 2'd0;
