@@ -107,13 +107,13 @@ module eth_mac_rx (
                 default: rx_state <= IDLE;
             endcase
 
-            if ((m_axis_tvalid && !m_axis_tready) || phy_rx_err_i) begin
-                rx_state <= IDLE;
-                m_axis_tdata  <= '0;
-                m_axis_tuser <= 1'b1;
-                m_axis_tvalid <= 1'b1;
-                m_axis_tlast  <= 1'b1;
-            end
+            // if ((m_axis_tvalid && !m_axis_tready) || phy_rx_err_i) begin
+            //     rx_state <= IDLE;
+            //     m_axis_tdata  <= '0;
+            //     m_axis_tuser <= 1'b1;
+            //     m_axis_tvalid <= 1'b1;
+            //     m_axis_tlast  <= 1'b1;
+            // end
 
         end
 
