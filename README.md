@@ -1,20 +1,27 @@
 # nekSoC-ethernet
-# FPGA Ethernet Stack (RMII/MAC/UDP/IPv4 to AXI-Stream)
+## Modular FPGA 100Mbps Ethernet Stack (RMII → MAC → IPv4/ARP/UDP → AXI-Stream) 
 
-An in-progress Ethernet modular stack. The goal is to bridge raw RMII signals from an Ethernet PHY through MAC/ARP/IPv4/UDP, and to transmit/receive data payload via a standard AXI-Stream interface.
+An in-progress modular Ethernet hardware stack. Built with low-latency **cut-through architecture**, providing a standard AXI-Stream interface for user applications.
 
-**Target device:** Tang Primer 20K 
+### Specs
+- **PHY:** RMII @ 50MHz (100Mbps link mode)
+- **Filtering:** Non-matching MAC/IP packets dropped 
+- **IPv4/UDP:** Hardware header parsing with crc validation/generation
+- **ARP Engine:** Hardware Request/Reply logic with an 8-entry naive cache
+- **Interface:** Standard 8-bit AXI-Stream for app layer
 
-**Toolchain:** Verilator, Yosys, nextpnr, openFPGALoader (all open source)
+### Hardware Verification
+Verified on the Tang Primer 20K.
 
-## Current Project Status
-* **Full Path Completed in Simulation:** Builds/Parses Ethernet ARP/IP/UDP Packets. 
-Replies to ARP requests, saves in arp cache IP/MAC pairs. Triggers request if MAC address for IP packet not found.
+### Measurements
+Testing was performed with a loopback in the top module and using a Python stimulus blasting random UDP packets directly from a PC, with over 50k packets sent.
 
-## Architecture
+Result was 94% success rate with a round trip latency of 1.08 ms (including Python/Scapy overhead).
 
-The stack is designed with a modular, layered approach to maximize reusability and clarity.
-
-- To be configurable over axi4lite:
-  - Local MAC Address
-  - Static local IPv4 address
+### To-Do List
+- Find culprit of only 94% success rate and not higher
+- Implement AXI4-Lite registers for dynamic configuration of:
+    * Local MAC & IP Addresses
+    * App Ports
+- AXI4-Lite registers also for status dropped packets/crc errors
+- More intelligent ARP cache  

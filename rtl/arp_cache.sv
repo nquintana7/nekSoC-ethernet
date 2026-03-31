@@ -69,7 +69,6 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
         miss_o   <= select_rd == '0;
         rd_mac_o <= 48'h0;
 
-        // Parallel search, but the result is locked into a flip-flop
         for (int i = 0; i < 8; i++) begin
             if (flags[i] && (cache[i][31:0] == rd_ip_i)) begin
                 select_rd <= i;

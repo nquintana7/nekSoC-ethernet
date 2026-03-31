@@ -57,11 +57,19 @@ module udp_ip_top (
 );
 
     // UDP TX -> IP TX
-    logic [7:0]  udp_ip_tx_tdata;
-    logic        udp_ip_tx_tvalid;
-    logic        udp_ip_tx_tlast;
-    logic [47:0] udp_ip_tx_tuser;
-    logic        udp_ip_tx_tready;
+    // --- UDP TX Output
+    logic [7:0]  udp_tx_out_tdata;
+    logic        udp_tx_out_tvalid;
+    logic        udp_tx_out_tlast;
+    logic [47:0] udp_tx_out_tuser;
+    logic        udp_tx_out_tready;
+
+    // --- IP TX Input
+    logic [7:0]  ip_tx_in_tdata;
+    logic        ip_tx_in_tvalid;
+    logic        ip_tx_in_tlast;
+    logic [47:0] ip_tx_in_tuser;
+    logic        ip_tx_in_tready;
     logic        ip_udp_tx_packet_drop;
 
     // IP RX -> UDP RX
@@ -90,11 +98,30 @@ module udp_ip_top (
         .s_axis_tready (app_tx_tready),
         
         .packet_drop_i (ip_udp_tx_packet_drop),
-        .m_axis_tready (udp_ip_tx_tready),
-        .m_axis_tdata  (udp_ip_tx_tdata),
-        .m_axis_tvalid (udp_ip_tx_tvalid),
-        .m_axis_tlast  (udp_ip_tx_tlast),
-        .m_axis_tuser  (udp_ip_tx_tuser)
+        .m_axis_tready (udp_tx_out_tready),
+        .m_axis_tdata  (udp_tx_out_tdata),
+        .m_axis_tvalid (udp_tx_out_tvalid),
+        .m_axis_tlast  (udp_tx_out_tlast),
+        .m_axis_tuser  (udp_tx_out_tuser)
+    );
+
+    axis_skid_buffer #(
+        .USER_WIDTH(48)
+    ) udp_to_ip_skid (
+        .clk   (clk_i),
+        .rstn  (rstn_i),
+        
+        .s_axis_tdata  (udp_tx_out_tdata),
+        .s_axis_tuser  (udp_tx_out_tuser),
+        .s_axis_tlast  (udp_tx_out_tlast),
+        .s_axis_tvalid (udp_tx_out_tvalid),
+        .s_axis_tready (udp_tx_out_tready),
+        
+        .m_axis_tdata  (ip_tx_in_tdata),
+        .m_axis_tuser  (ip_tx_in_tuser),
+        .m_axis_tlast  (ip_tx_in_tlast),
+        .m_axis_tvalid (ip_tx_in_tvalid),
+        .m_axis_tready (ip_tx_in_tready)
     );
 
     // IP Transmit
@@ -110,12 +137,12 @@ module udp_ip_top (
         .trigger_request_o (ip_tx_req_trigger), // Triggers ARP Top
         
         // From UDP TX
-        .s_axis_tdata      (udp_ip_tx_tdata),
-        .s_axis_tvalid     (udp_ip_tx_tvalid),
-        .s_axis_tlast      (udp_ip_tx_tlast),
+        .s_axis_tdata      (ip_tx_in_tdata),
+        .s_axis_tvalid     (ip_tx_in_tvalid),
+        .s_axis_tlast      (ip_tx_in_tlast),
         // Zero-padding the length. 
-        .s_axis_tuser      (udp_ip_tx_tuser), 
-        .s_axis_tready     (udp_ip_tx_tready),
+        .s_axis_tuser      (ip_tx_in_tuser), 
+        .s_axis_tready     (ip_tx_in_tready),
         .packet_drop_o     (ip_udp_tx_packet_drop),
         
         // To MAC (Stream 1)
