@@ -13,10 +13,8 @@ An in-progress modular Ethernet hardware stack. Built with a low-latency cut-thr
 
 ### Perfomance & Verification
 - Verified on the Tang Primer 20K.
-- Tested with a Python script blasting random UDP packets directly from a PC to the FPGA. The FPGA runs a top loopback module. The script waits for the successful loopback return before dispatching the next packet.
+- Tested with a Python script blasting random UDP packets directly from a PC to the FPGA (tested with 100k packets). The FPGA runs a top loopback module. The script waits for the successful loopback return before dispatching the next packet.
 - Achieved 100% success rate with this script, with a 1.25 ms avg latency (including python/OS overhead)
-
-Round trip latency is 1.25 ms
 
 ### To-Do List
 - Stress test for non-stop receiving packets
