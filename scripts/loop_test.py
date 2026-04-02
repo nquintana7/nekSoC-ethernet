@@ -8,7 +8,7 @@ INTERFACE = "Ethernet"
 FPGA_IP = "192.168.1.10"
 PC_IP = "192.168.1.11"
 UDP_PORT = 5005
-NUM_PACKETS = 50000
+NUM_PACKETS = 100000
 
 def run_stress_test():
     print(f"--- Targeting FPGA at {FPGA_IP} ---")
@@ -35,6 +35,12 @@ def run_stress_test():
     for i in range(NUM_PACKETS):
         if (i + 1) % 1000 == 0:
             print(f"--- Progress: Reached packet {i + 1} ---")
+
+        # try:
+        #     input(f"\nPress Enter to send packet {i+1}/{NUM_PACKETS} (or Ctrl+C to finish early)...")
+        # except KeyboardInterrupt:
+        #     print("\nTest interrupted by user. Proceeding to stats...")
+        #     break
         payload_len = random.randint(800, 1472)
 
         # Create random bytes for the payload

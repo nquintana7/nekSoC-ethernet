@@ -43,6 +43,8 @@ module udp_rx (
         end
     end
 
+    logic [31:0] err_cnt;
+
     always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             byte_cnt     <= '0;
@@ -52,6 +54,7 @@ module udp_rx (
             src_port     <= '0;
             src_ip <= '0;
             port_o <= '0;
+            err_cnt <= '0;
         end else begin
 
             if (s_axis_tvalid && s_axis_tready && s_axis_tlast) begin
@@ -82,6 +85,7 @@ module udp_rx (
                         end
 
                         if (byte_cnt == 3'd4 && !port_en_i) begin
+                            err_cnt <= err_cnt + 1'b1;
                             state <= IGNORE;   
                         end
 

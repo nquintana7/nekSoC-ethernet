@@ -38,12 +38,18 @@ module ip_rx (
         end
     end
 
+    logic [31:0] err_cnt;
+    logic [31:0] err2_cnt;
+    logic [31:0] correct_cnt;
+
     always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             byte_cnt <= '0;
             state <= HEADER;
             m_axis_tuser <= '0;
             last_bytes <= '0;
+            err_cnt <= '0;
+            correct_cnt <= '0;
         end else begin
 
             if (s_axis_tvalid && s_axis_tready && s_axis_tlast) begin
@@ -60,6 +66,7 @@ module ip_rx (
                             byte_cnt <= byte_cnt+1;
 
                             if ((byte_cnt == 'd9 && s_axis_tdata != 8'h11)) begin
+                                err_cnt <= err_cnt + 1'b1;
                                 state <= IGNORE;
                             end
                             
@@ -72,6 +79,7 @@ module ip_rx (
                                 if (local_ip_i == {last_bytes[23:0], s_axis_tdata} || {last_bytes[23:0], s_axis_tdata} == 32'hFFFFFFFF) begin
                                     state <= DATA;
                                 end else begin
+                                    err2_cnt <= err2_cnt + 1'b1;
                                     state <= IGNORE;
                                 end
                             end

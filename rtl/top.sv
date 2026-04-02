@@ -1,14 +1,14 @@
 module rmii_udp_loopback_top (
     // --- Physical RMII Pins (matching board.cst) ---
-    input  logic       rst,
-    input  logic       netrmii_clk50m,
-    output logic       phyrst,
-    output logic [1:0] netrmii_txd,
-    output logic       netrmii_txen,
-    input  logic       netrmii_rx_crs,
-    input  logic [1:0] netrmii_rxd,
-    output logic       netrmii_mdc,
-    inout  logic       netrmii_mdio
+    input  logic        rst,
+    input  logic        netrmii_clk50m,
+    output logic        phyrst,
+    output logic [1:0]  netrmii_txd,
+    output logic        netrmii_txen,
+    input  logic        netrmii_rx_crs,
+    input  logic [1:0]  netrmii_rxd,
+    output logic        netrmii_mdc,
+    inout  logic        netrmii_mdio
 );
 
     // --- Reset Generation ---
@@ -39,10 +39,10 @@ module rmii_udp_loopback_top (
 
     logic clk125;
 
-    Gowin_rPLL your_instance_name(
-        .clkout(clk125), //output clkout
-        .clkin(netrmii_clk50m) //input clkin
-    );
+   Gowin_rPLL your_instance_name(
+       .clkout(clk125), //output clkout
+       .clkin(netrmii_clk50m) //input clkin
+   );
 
     // --- Instantiate Ethernet Stack ---
     eth_stack_top u_eth_stack (
@@ -76,6 +76,25 @@ module rmii_udp_loopback_top (
         .port_en_i     (1'b1),
         .port_o        ()
     );
+    logic [31:0] rx_pkt_cnt;
+    logic [31:0] tx_pkt_cnt;
+    
+    // Track completed RX and TX packet transfers using the AXI-Stream handshake
+    always_ff @(posedge clk125) begin
+        if (!rst) begin
+            rx_pkt_cnt <= '0;
+            tx_pkt_cnt <= '0;
+        end else begin
+
+            if (app_rx_tvalid && app_rx_tready && app_rx_tlast) begin
+                rx_pkt_cnt <= rx_pkt_cnt + 1'b1;
+            end
+            
+            if (app_tx_tvalid && app_tx_tready && app_tx_tlast) begin
+                tx_pkt_cnt <= tx_pkt_cnt + 1'b1;
+            end
+        end
+    end
 
     // --- UDP Store-and-Forward Loopback Logic ---
     typedef enum logic [1:0] {IDLE, RX_PKT, TX_PKT} state_t;
@@ -101,7 +120,7 @@ module rmii_udp_loopback_top (
                 IDLE: begin
                     rx_ptr <= '0;
                     if (app_rx_tvalid && app_rx_tready) begin
-                        pkt_buffer[0]  <= app_rx_tdata;
+                        pkt_buffer[rx_ptr]  <= app_rx_tdata;
                         saved_rx_tuser <= app_rx_tuser; // Capture {Source IP, Source Port}
                         rx_ptr         <= 11'd1;
                         state          <= app_rx_tlast ? TX_PKT : RX_PKT;
@@ -129,7 +148,7 @@ module rmii_udp_loopback_top (
                     // Route back to sender: [Dest IP (32), Src Port (16), Dest Port (16), Length (16)]
                     app_tx_tuser  <= {
                         saved_rx_tuser[47:16], // Dest IP = Sender's IP
-                        16'd1234,           // Src Port = Our local port
+                        16'd1234,              // Src Port = Our local port
                         saved_rx_tuser[15:0],  // Dest Port = Sender's Port
                         16'(pkt_length)        // Payload Length
                     };
@@ -151,4 +170,3 @@ module rmii_udp_loopback_top (
     end
 
 endmodule
-

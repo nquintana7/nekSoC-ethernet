@@ -53,6 +53,10 @@ module frame_parser (
         end
     end
 
+    logic [31:0] err_cnt;
+    logic [31:0] correct_cnt;
+    logic [31:0] filter_cnt;
+
     always_ff @(posedge clk_i or negedge rstn_i) begin
         if (!rstn_i) begin
             state        <= HEADER;
@@ -61,6 +65,9 @@ module frame_parser (
             src_mac      <= '0;
             ethtype<= '0;
             is_arp_q <= 1'b0;
+            err_cnt <= '0;
+            correct_cnt <= '0;
+            filter_cnt <= '0;
         end else begin
             
             if (s_axis_tvalid && s_axis_tready) begin
@@ -95,9 +102,11 @@ module frame_parser (
                                         state        <= DATA;
                                     end 
                                     else begin
+                                        err_cnt <= err_cnt + 1'b1;
                                         state <= IGNORE;
                                     end
                                 end else begin
+                                    filter_cnt <= filter_cnt + 1'b1;
                                     state <= IGNORE;
                                 end
 
