@@ -3,6 +3,10 @@
 
 An in-progress modular Ethernet hardware stack. Built with a low-latency cut-through architecture and a standard AXI-Stream interface for user applications.
 
+### Architecture Overview
+All data is cut-through/streaming, there is no buffering/FIFO except at the TX CDC boundary since the RMII runs a slower clock. Headers are parsed/builded on-the-fly.
+![nekSoC Ethernet Architecture](doc/architecture.png)
+
 ### Specs
 - Internal clock running at 125MHz
 - **PHY:** RMII @ 50MHz (100Mbps link mode)
@@ -17,7 +21,6 @@ An in-progress modular Ethernet hardware stack. Built with a low-latency cut-thr
 - Achieved 100% success rate with this script, with a 1.25 ms avg latency (including python/OS overhead)
 
 ### To-Do List
-- Stress test for non-stop receiving packets
 - Implement AXI4-Lite registers for dynamic configuration of:
     * Local MAC & IPv4 Address
     * App Ports
