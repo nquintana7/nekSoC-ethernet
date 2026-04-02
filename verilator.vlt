@@ -1,0 +1,8 @@
+`verilator_config
+lint_off -rule DECLFILENAME
+lint_off -rule IMPORTSTAR
+lint_off -rule UNUSEDSIGNAL
+lint_off -rule UNUSEDPARAM
+lint_off -rule WIDTHEXPAND
+lint_off -rule WIDTHTRUNC
+lint_off -rule INITIALDLY

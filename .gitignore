@@ -30,7 +30,6 @@ obj_dir/
 *.vcd
 *.fst
 *.ghw
-*.vlt
 
 # --- IDEs ---
 .vscode/

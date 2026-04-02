@@ -87,24 +87,29 @@ module arp_top ( //Tx side missing
     // ==========================================
     // ARP TX Arbiter FSM
     // ==========================================
-    always_comb begin
-        tx_start    = 1'b0;
-        tx_type     = 1'b0;
-        tx_dest_mac = 48'h0;
-        tx_dest_ip  = 32'h0;
+    always_ff @(posedge clk_i or negedge rstn_i) begin
+        if (!rstn_i) begin
+            tx_start    <= 1'b0;
+            tx_type     <= 1'b0;
+            tx_dest_mac <= 48'h0;
+            tx_dest_ip  <= 32'h0;
+        end else begin
+            // Default: clear the start pulse unless a condition is met
+            tx_start <= 1'b0;
 
-        if (!arp_tx_busy_s) begin
-            if (trigger_reply_s) begin
-                tx_start    = 1'b1;
-                tx_type     = 1'b1;
-                tx_dest_mac = wr_mac_s;
-                tx_dest_ip  = wr_ip_s;
-            end 
-            else if (ip_tx_req_trigger_i) begin
-                tx_start    = 1'b1;
-                tx_type     = 1'b0;
-                tx_dest_mac = 48'hFFFFFFFFFFFF;
-                tx_dest_ip  = rd_ip_i;
+            if (!arp_tx_busy_s) begin
+                if (trigger_reply_s) begin
+                    tx_start    <= 1'b1;
+                    tx_type     <= 1'b1;
+                    tx_dest_mac <= wr_mac_s;
+                    tx_dest_ip  <= wr_ip_s;
+                end 
+                else if (ip_tx_req_trigger_i) begin
+                    tx_start    <= 1'b1;
+                    tx_type     <= 1'b0;
+                    tx_dest_mac <= 48'hFFFFFFFFFFFF;
+                    tx_dest_ip  <= rd_ip_i;
+                end
             end
         end
     end
