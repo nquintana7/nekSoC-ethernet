@@ -66,10 +66,6 @@ module eth_stack_top (
     logic        arp_rx_tuser;
     logic        arp_rx_tready;
 
-    // ==========================================
-    // Module Instantiations
-    // ==========================================
-
     // Protocol Stack (UDP + IP + ARP)
     udp_ip_top u_udp_ip_top (
         .clk_i             (clk_i),

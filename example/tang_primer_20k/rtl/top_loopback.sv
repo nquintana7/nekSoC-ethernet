@@ -1,5 +1,6 @@
+// Loopback test
 module rmii_udp_loopback_top (
-    // --- Physical RMII Pins (matching board.cst) ---
+    // --- Physical RMII Pins - --
     input  logic        rst,
     input  logic        netrmii_clk50m,
     output logic        phyrst,

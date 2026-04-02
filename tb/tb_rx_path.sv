@@ -26,30 +26,27 @@ module tb_rx_path();
         .m_axis_tready(rx_mac_tready), .m_axis_tlast(rx_mac_tlast), .m_axis_tuser()
     );
 
-    logic [7:0] rx_udp_stdata; logic rx_udp_stvalid = 0, rx_udp_stready = 0, rx_udp_stlast = 0;
+    // --- Signals for IP/UDP Side ---
+    logic [7:0]  rx_ip_tdata; logic rx_ip_tvalid, rx_ip_tready, rx_ip_tlast;
+    logic [48:0] rx_ip_tuser_49; // From new Parser ({src_mac, error})
+    logic        rx_ip_tuser;    // To IP Rx (Just the error bit)
+    assign rx_ip_tuser = rx_ip_tuser_49[0];
+
+    logic [7:0]  rx_udp_stdata; logic rx_udp_stvalid = 0, rx_udp_stready = 0, rx_udp_stlast = 0;
     logic [31:0] rx_udp_stuser;
 
-    logic [7:0] rx_udp_mtdata; logic rx_udp_mtvalid = 0, rx_udp_mtready = 0, rx_udp_mtlast = 0;
+    logic [7:0]  rx_udp_mtdata; logic rx_udp_mtvalid = 0, rx_udp_mtready = 0, rx_udp_mtlast = 0;
     logic [47:0] rx_udp_tuser;
 
-    logic [7:0] rx_arp_tdata; logic rx_arp_tvalid = 0, rx_arp_tready = 0, rx_arp_tlast = 0, rx_arp_tuser =0;
+    // --- Signals for ARP Side ---
+    logic [7:0]  rx_arp_tdata; logic rx_arp_tvalid, rx_arp_tready, rx_arp_tlast;
+    logic [48:0] rx_arp_tuser_49; // From new Parser ({src_mac, error})
+    logic        rx_arp_tuser;    // To ARP Top (Just the error bit)
+    assign rx_arp_tuser = rx_arp_tuser_49[0];
 
-    logic [7:0] fparser_tdata; logic fparser_valid = 0, fparser_tready = 0, fparser_tlast = 0, fparser_tdest = 0;
-    logic [48:0] fparser_tuser;
-    
-    logic [7:0] rx_ip_tdata; logic rx_ip_tvalid, rx_ip_tready, rx_ip_tlast, rx_ip_tuser;
-
-    assign rx_ip_tvalid   = (fparser_tdest == 1'b0) ? fparser_valid : 1'b0;
-    assign rx_ip_tdata    = fparser_tdata;
-    assign rx_ip_tlast    = fparser_tlast;
-    assign rx_ip_tuser    = fparser_tuser[0];
-
-    assign rx_arp_tvalid  = (fparser_tdest == 1'b1) ? fparser_valid : 1'b0;
-    assign rx_arp_tdata   = fparser_tdata;
-    assign rx_arp_tlast   = fparser_tlast;
-    assign rx_arp_tuser   = fparser_tuser[0];
-
-    assign fparser_tready = (fparser_tdest == 1'b1) ? rx_arp_tready : rx_ip_tready;
+    // ==========================================
+    // MODULE INSTANTIATIONS
+    // ==========================================
 
     frame_parser u_frame_parser (
         .clk_i(clk_100m),
@@ -57,18 +54,26 @@ module tb_rx_path();
 
         .local_mac_addr_i(local_mac),
 
+        // Input from MAC
         .s_axis_tdata(rx_mac_tdata),
         .s_axis_tvalid(rx_mac_tvalid),
         .s_axis_tlast(rx_mac_tlast),
         .s_axis_tuser(1'b0),
         .s_axis_tready(rx_mac_tready),
 
-        .m_axis_tready(fparser_tready),
-        .m_axis_tdata(fparser_tdata),
-        .m_axis_tvalid(fparser_valid),
-        .m_axis_tlast(fparser_tlast),
-        .m_axis_tuser(fparser_tuser), // {src_mac, error}
-        .m_axis_tdest(fparser_tdest)
+        // Output IP Stream directly to IP_RX
+        .m_ip_axis_tready(rx_ip_tready),
+        .m_ip_axis_tdata(rx_ip_tdata),
+        .m_ip_axis_tvalid(rx_ip_tvalid),
+        .m_ip_axis_tlast(rx_ip_tlast),
+        .m_ip_axis_tuser(rx_ip_tuser_49), 
+
+        // Output ARP Stream directly to ARP_TOP
+        .m_arp_axis_tready(rx_arp_tready),
+        .m_arp_axis_tdata(rx_arp_tdata),
+        .m_arp_axis_tvalid(rx_arp_tvalid),
+        .m_arp_axis_tlast(rx_arp_tlast),
+        .m_arp_axis_tuser(rx_arp_tuser_49) 
     );    
 
     arp_top u_arp (
@@ -133,7 +138,6 @@ module tb_rx_path();
         .m_axis_tuser(rx_udp_tuser) // {Source IP, Source Port}
     );  
 
-
     // FRAME 1: ARP Request (Who has 192.168.1.65? Tell 192.168.1.132)
     logic [7:0] frame1 [0:59] = '{
             // --- ETHERNET HEADER (14 Bytes) ---
@@ -141,15 +145,11 @@ module tb_rx_path();
             8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF, // Src MAC: Remote Device
             8'h08, 8'h06,                             // EtherType: ARP (0x0806)
             // --- ARP PAYLOAD (28 Bytes) ---
-            8'h00, 8'h01,                             // Hardware Type: Ethernet
-            8'h08, 8'h00,                             // Protocol Type: IPv4
-            8'h06,                                    // HW Addr Len: 6
-            8'h04,                                    // Proto Addr Len: 4
-            8'h00, 8'h01,                             // Opcode: 1 (Request)
-            8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF, // Sender MAC: Remote Device
-            8'hC0, 8'hA8, 8'h01, 8'h84,               // Sender IP: 192.168.1.132
-            8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, // Target MAC: 00:00... (Ignored)
-            8'hC0, 8'hA8, 8'h01, 8'h41,               // Target IP: 192.168.1.65 (local_ip)
+            8'h00, 8'h01, 8'h08, 8'h00, 8'h06, 8'h04, 8'h00, 8'h01, 
+            8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF, 
+            8'hC0, 8'hA8, 8'h01, 8'h84,               
+            8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 
+            8'hC0, 8'hA8, 8'h01, 8'h41,               
             // --- PADDING (18 Bytes to reach 60 byte min frame size) ---
             8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 
             8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00
@@ -158,30 +158,16 @@ module tb_rx_path();
     // FRAME 2: UDP Packet (Src Port 5000, Dest Port 5001)
     logic [7:0] frame2 [0:63] = '{
         // --- ETHERNET HEADER (14 Bytes) ---
-        8'h00, 8'h1A, 8'h2B, 8'h3C, 8'h4D, 8'h5E, // Dest MAC: Your Board (local_mac)
-        8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF, // Src MAC: Remote Device
-        8'h08, 8'h00,                             // EtherType: IPv4 (0x0800)
+        8'h00, 8'h1A, 8'h2B, 8'h3C, 8'h4D, 8'h5E, 8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF, 8'h08, 8'h00,                             
         // --- IPv4 HEADER (20 Bytes) ---
-        8'h45,                                    // Version (4) & IHL (5 words)
-        8'h00,                                    // DSCP / ECN
-        8'h00, 8'h24,                             // Total Length: 36 bytes (IP+UDP+Data)
-        8'h12, 8'h34,                             // Identification
-        8'h00, 8'h00,                             // Flags & Fragment Offset
-        8'h40,                                    // TTL: 64
-        8'h11,                                    // Protocol: 17 (UDP)
-        8'h00, 8'h00,                             // Header Checksum (Ignored by HW)
-        8'hC0, 8'hA8, 8'h01, 8'h84,               // Source IP: 192.168.1.132
-        8'hC0, 8'hA8, 8'h01, 8'h41,               // Dest IP: 192.168.1.65 (local_ip)
+        8'h45, 8'h00, 8'h00, 8'h24, 8'h12, 8'h34, 8'h00, 8'h00, 8'h40, 8'h11, 8'h00, 8'h00, 
+        8'hC0, 8'hA8, 8'h01, 8'h84, 8'hC0, 8'hA8, 8'h01, 8'h41,               
         // --- UDP HEADER (8 Bytes) ---
-        8'h13, 8'h88,                             // Source Port: 5000
-        8'h13, 8'h89,                             // Dest Port: 5001
-        8'h00, 8'h10,                             // Length: 16 bytes (UDP + Data)
-        8'h00, 8'h00,                             // Checksum
+        8'h13, 8'h88, 8'h13, 8'h89, 8'h00, 8'h10, 8'h00, 8'h00,                             
         // --- UDP PAYLOAD (8 Bytes) ---
         8'hDE, 8'hAD, 8'hBE, 8'hEF, 8'hCA, 8'hFE, 8'hBA, 8'hBE,
         // --- PADDING (14 Bytes) ---
-        8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 
-        8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00
+        8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00, 8'h00
     };
 
     logic [7:0] exp_udp [0:21] = '{
@@ -190,8 +176,8 @@ module tb_rx_path();
     };
 
     initial begin
-        $dumpfile("waveform.vcd");
-        $dumpvars(0, tb_eth_mac_axi);
+        $dumpfile("tb_rx_path.vcd");
+        $dumpvars(0, tb_rx_path);
 
         rstn = 0; #200 rstn = 1;
 
@@ -224,7 +210,6 @@ module tb_rx_path();
     endtask
 
     initial begin
-        // Watchdog: Force stop if simulation exceeds 1ms of virtual time
         #1ms;
         $display("ERROR: Simulation Watchdog Timeout!");
         $fatal;
@@ -233,7 +218,7 @@ module tb_rx_path();
     task automatic receive_udp_payload(input int len, input logic [7:0] exp []);
         logic done = 0;
         int k = 0;
-        rx_udp_mtready <= 1; // Open the valve for the UDP parser
+        rx_udp_mtready <= 1;
         
         while (!done) begin
             @(posedge clk_100m);
@@ -246,7 +231,6 @@ module tb_rx_path();
                 
                 if (rx_udp_mtlast) begin
                     $display("[%0t] UDP RX: TLAST detected. Payload bytes matched: %0d", $time, k+1);
-                    // Print the extracted Metadata (Source IP and Port)
                     $display("[%0t] UDP RX METADATA: Source IP: %h, Source Port: %h", $time, rx_udp_tuser[47:16], rx_udp_tuser[15:0]);
                     done = 1'b1;
                 end
@@ -256,32 +240,4 @@ module tb_rx_path();
         rx_udp_mtready <= 0;
     endtask
 
-    
-    task automatic receive_axis(input int len, input logic [7:0] exp []);
-
-        logic done;
-        int k;
-        k = 0;
-        done = 0;
-        rx_mac_tready <= 1;
-        while (!done) begin
-            @(posedge clk_100m);
-            if (rx_mac_tvalid && rx_mac_tready) begin
-
-                if (rx_mac_tdata !== exp[k]) begin
-                    $display("[%0t] ERR: Byte %0d mismatch! Exp:%h Got:%h", $time, k, exp[k], rx_mac_tdata);
-                end
-                
-                if (rx_mac_tlast) begin
-                    $display("[%0t] RX: TLAST detected. Packet complete. Total bytes: %0d", $time, k+1);
-                    done = 1'b1;
-                end
-                
-                k++;
-            end
-        end
-        
-        rx_mac_tready <= 0;
-    endtask
-    
 endmodule
