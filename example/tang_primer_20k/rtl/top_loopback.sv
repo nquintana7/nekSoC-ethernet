@@ -1,5 +1,5 @@
 // Loopback test
-module rmii_udp_loopback_top (
+module top_loopback (
     // --- Physical RMII Pins - --
     input  logic        rst,
     input  logic        netrmii_clk50m,
@@ -41,7 +41,7 @@ module rmii_udp_loopback_top (
 
     logic clk125;
 
-   Gowin_rPLL your_instance_name(
+   Gowin_rPLL pll(
        .clkout(clk125), //output clkout
        .clkin(netrmii_clk50m) //input clkin
    );

@@ -9,18 +9,19 @@ All data is cut-through/streaming, there is no buffering/FIFO except at the TX C
 
 ### Specs
 - Internal clock running at 125MHz
-- **PHY:** RMII @ 50MHz (100Mbps link mode)
-- **Filtering:** Non-matching MAC/IP packets dropped 
-- **IPv4/UDP:** Hardware header parsing with crc validation/generation
-- **ARP Engine:** Hardware Request/Reply logic with an 8-entry naive cache
-- **Interface:** Standard 8-bit AXI-Stream for app layer
+- RMII @ 50MHz (100Mbps link mode)
+- Non-matching MAC/IP packets dropped 
+- Hardware header parsing with crc validation/generation
+- ARP Request/Reply logic with a cache
+- Standard 8-bit AXI-Stream for app layer
 
 ### Perfomance & Verification
 - Verified on the Tang Primer 20K.
 - Tested with a Python script blasting random UDP packets directly from a PC to the FPGA (tested with 100k packets). The FPGA runs a top loopback module. The script waits for the successful loopback return before dispatching the next packet.
-- Achieved 100% success rate with this script, with a 1.25 ms avg latency (including python/OS overhead)
 
 ### To-Do List
+- ARP request when arp cache miss not done yet
+- Test packet burst loopback
 - Implement AXI4-Lite registers for dynamic configuration of:
     * Local MAC & IPv4 Address
     * App Ports

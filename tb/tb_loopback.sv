@@ -11,14 +11,13 @@ module tb_loopback();
     always #10 clk_50m  = ~clk_50m;  // RMII Clock
 
     // --- Configuration ---
-    parameter logic [47:0] REMOTE_MAC = 48'h00_0E_7F_5F_F1_DF; // Testbench "Remote PC" MAC
-    parameter logic [47:0] DUT_MAC    = 48'h00_1A_2B_3C_4D_5E; // Your FPGA's MAC
-
+    parameter logic [47:0] REMOTE_MAC = 48'h00_0E_7F_5F_F1_DF; 
+    parameter logic [47:0] DUT_MAC    = 48'h00_1A_2B_3C_4D_5E; 
     // --- RMII Interconnect (TB MAC <--> DUT) ---
     logic [1:0] tb_to_dut_data, dut_to_tb_data;
     logic       tb_to_dut_en,   dut_to_tb_en;
 
-    // --- TB Remote PC Split AXI-Stream Interfaces ---
+
     logic [7:0]  tb_ip_tx_tdata;  logic tb_ip_tx_tvalid = 0, tb_ip_tx_tready, tb_ip_tx_tlast = 0;
     logic [47:0] tb_ip_tx_tuser = 0;
     
@@ -57,10 +56,8 @@ module tb_loopback();
         .m_arp_rx_axis_tready(tb_arp_rx_tready)
     );
 
-    // ==========================================
-    // 2. YOUR DUT: Physical Loopback Top
-    // ==========================================
-    rmii_udp_loopback_top u_top (
+
+    top_loopback u_top (
         .rst(rstn),
         .netrmii_clk50m(clk_50m),
         .phyrst(phyrst),
@@ -72,9 +69,6 @@ module tb_loopback();
         .netrmii_mdio(mdio)
     );
 
-    // ==========================================
-    // Static Payload Definitions (For ARP only)
-    // ==========================================
     logic [7:0] arp_req_payload [0:27] = '{
         8'h00, 8'h01, 8'h08, 8'h00, 8'h06, 8'h04, 8'h00, 8'h01,
         8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF,                 // Sender MAC (Remote PC)
@@ -91,9 +85,6 @@ module tb_loopback();
         8'hC0, 8'hA8, 8'h01, 8'h84                                // Target IP: 192.168.1.132
     };
 
-    // ==========================================
-    // Simulation Sequence
-    // ==========================================
     initial begin
         $dumpfile("top_waveform.vcd");
         $dumpvars(0, tb_loopback);
@@ -139,9 +130,6 @@ module tb_loopback();
         $finish;
     end
 
-    // ==========================================
-    // Tasks
-    // ==========================================
     
     // Dynamically builds IP/UDP headers, calculates checksums, and monitors loopback
     task automatic send_and_verify_random_udp(input int payload_len, output logic success);
