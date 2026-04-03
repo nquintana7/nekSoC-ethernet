@@ -24,6 +24,7 @@ module rmii_udp_loopback_top (
     // --- System Configuration Constants ---
     logic [31:0] local_ip  = {8'd192, 8'd168, 8'd1, 8'd10}; // 192.168.1.10
     logic [47:0] local_mac = 48'h00_1A_2B_3C_4D_5E;
+    logic [15:0] local_port = 16'd5005;
 
     // --- AXI-Stream Signals ---
     logic        app_tx_tvalid, app_tx_tlast, app_tx_tready;
@@ -149,7 +150,7 @@ module rmii_udp_loopback_top (
                     // Route back to sender: [Dest IP (32), Src Port (16), Dest Port (16), Length (16)]
                     app_tx_tuser  <= {
                         saved_rx_tuser[47:16], // Dest IP = Sender's IP
-                        16'd1234,              // Src Port = Our local port
+                        local_port,              // Src Port = Our local port
                         saved_rx_tuser[15:0],  // Dest Port = Sender's Port
                         16'(pkt_length)        // Payload Length
                     };

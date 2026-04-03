@@ -66,7 +66,7 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
     end else begin
         // Default values for the clock cycle
         select_rd <= '0;
-        miss_o   <= select_rd == '0;
+        miss_o   <= flags[select_rd] == '0;
         rd_mac_o <= 48'h0;
 
         for (int i = 0; i < 8; i++) begin
@@ -74,7 +74,6 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                 select_rd <= i;
             end
         end
-
         
         rd_mac_o <= cache[select_rd][79:32];
     end
