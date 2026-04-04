@@ -16,11 +16,24 @@ module rmii_cdc_tx_mac (
     input  logic       phy_tx_ready_i   
 );
 
-    logic fifo_empty;
+    logic fifo_empty, fifo_empty_ff;
     logic [8:0] fifo_dout;
-
-    assign phy_tx_valid_o = ~fifo_empty;
     
+    always_ff @(posedge clk_50m_i or negedge rstn_i)
+    begin
+        if (!rstn_i) begin
+            phy_tx_valid_o <= 1'b0;
+        end else begin
+        
+            if (phy_tx_valid_o & phy_tx_last_o & phy_tx_ready_i) begin // make sure RMII read the last value
+                phy_tx_valid_o <= 1'b0;    
+            end else begin
+                phy_tx_valid_o <= ~fifo_empty;
+            end
+               
+        end
+    end
+
     assign phy_tx_byte_o = fifo_dout[7:0];
     assign phy_tx_last_o = fifo_dout[8];
 

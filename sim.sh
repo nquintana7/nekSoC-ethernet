@@ -27,6 +27,6 @@ if [ -f "top_waveform.vcd" ]; then
     echo "--- Opening GTKWave ---"
     gtkwave ./top_waveform.vcd
 else
-    echo "Error: top_waveform.vcd not found. Check if your TB writes the trace."
+    echo "Error: top_waveform.vcd not found."
     exit 1
 fi

@@ -1,3 +1,3 @@
-create_clock -name clk50 -period 20 -waveform {0 10} [get_ports {netrmii_clk50m}]
-create_clock -name clk_125m -period 8.0 [get_nets {clk125}]
-set_clock_groups -asynchronous -group [get_clocks {clk50}] -group [get_clocks {clk_125m}]
+create_clock -period 20.0 -name netrmii_clk50m [get_ports {netrmii_clk50m}]
+create_clock -period 8.0 -name clk125 [get_nets {clk125}]
+set_clock_groups -asynchronous -group [get_clocks {netrmii_clk50m}] -group [get_clocks {clk125}]

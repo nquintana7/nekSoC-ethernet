@@ -39,7 +39,11 @@ module fifo_async #(
         end
     end
 
-    assign dout_o = mem[rptr_bin[ADDR_WIDTH-1:0]];
+   always_ff @(posedge rclk_i) begin
+        if (rden_i) begin // gowin only supports sync read for bram
+            dout_o <= mem[rptr_bin[ADDR_WIDTH-1:0]]; 
+        end
+    end
 
     // -----------------------------------------
     // 2. Write Pointer & Gray Code Generation

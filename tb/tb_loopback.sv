@@ -13,10 +13,10 @@ module tb_loopback();
     // --- Configuration ---
     parameter logic [47:0] REMOTE_MAC = 48'h00_0E_7F_5F_F1_DF; 
     parameter logic [47:0] DUT_MAC    = 48'h00_1A_2B_3C_4D_5E; 
+    
     // --- RMII Interconnect (TB MAC <--> DUT) ---
     logic [1:0] tb_to_dut_data, dut_to_tb_data;
     logic       tb_to_dut_en,   dut_to_tb_en;
-
 
     logic [7:0]  tb_ip_tx_tdata;  logic tb_ip_tx_tvalid = 0, tb_ip_tx_tready, tb_ip_tx_tlast = 0;
     logic [47:0] tb_ip_tx_tuser = 0;
@@ -30,6 +30,9 @@ module tb_loopback();
     // --- Physical Pins for DUT ---
     logic phyrst, mdc;
     wire  mdio;
+
+    typedef logic [7:0] payload_arr_t [];
+    payload_arr_t exp_payload_queue [$];
 
     // ==========================================
     // 1. Remote PC MAC (Testbench Stimulus)
@@ -45,17 +48,19 @@ module tb_loopback();
         .s_ip_tx_axis_tdata(tb_ip_tx_tdata),   .s_ip_tx_axis_tvalid(tb_ip_tx_tvalid),
         .s_ip_tx_axis_tlast(tb_ip_tx_tlast),   .s_ip_tx_axis_tuser(tb_ip_tx_tuser),
         .s_ip_tx_axis_tready(tb_ip_tx_tready),
+        
         .s_arp_tx_axis_tdata(tb_arp_tx_tdata), .s_arp_tx_axis_tvalid(tb_arp_tx_tvalid),
         .s_arp_tx_axis_tlast(tb_arp_tx_tlast), .s_arp_tx_axis_tuser(tb_arp_tx_tuser),
         .s_arp_tx_axis_tready(tb_arp_tx_tready),
+        
         .m_ip_rx_axis_tdata(tb_ip_rx_tdata),   .m_ip_rx_axis_tvalid(tb_ip_rx_tvalid),
         .m_ip_rx_axis_tlast(tb_ip_rx_tlast),   .m_ip_rx_axis_tuser(tb_ip_rx_tuser),
         .m_ip_rx_axis_tready(tb_ip_rx_tready),
+        
         .m_arp_rx_axis_tdata(tb_arp_rx_tdata), .m_arp_rx_axis_tvalid(tb_arp_rx_tvalid),
         .m_arp_rx_axis_tlast(tb_arp_rx_tlast), .m_arp_rx_axis_tuser(tb_arp_rx_tuser),
         .m_arp_rx_axis_tready(tb_arp_rx_tready)
     );
-
 
     top_loopback u_top (
         .rst(rstn),
@@ -69,7 +74,7 @@ module tb_loopback();
         .netrmii_mdio(mdio)
     );
 
-    logic [7:0] arp_req_payload [0:27] = '{
+    logic [7:0] arp_req_payload [] = '{
         8'h00, 8'h01, 8'h08, 8'h00, 8'h06, 8'h04, 8'h00, 8'h01,
         8'h00, 8'h0E, 8'h7F, 8'h5F, 8'hF1, 8'hDF,                 // Sender MAC (Remote PC)
         8'hC0, 8'hA8, 8'h01, 8'h84,                               // Sender IP: 192.168.1.132
@@ -77,7 +82,7 @@ module tb_loopback();
         8'hC0, 8'hA8, 8'h01, 8'd10                                // Target IP: 192.168.1.10 (DUT)
     };    
 
-    logic [7:0] exp_arp_reply [0:27] = '{
+    logic [7:0] exp_arp_reply [] = '{
         8'h00, 8'h01, 8'h08, 8'h00, 8'h06, 8'h04, 8'h00, 8'h02,
         8'h00, 8'h1A, 8'h2B, 8'h3C, 8'h4D, 8'h5E,                 // Sender MAC (DUT)
         8'hC0, 8'hA8, 8'h01, 8'd10,                               // Sender IP: 192.168.1.10 (DUT)
@@ -89,12 +94,11 @@ module tb_loopback();
         $dumpfile("top_waveform.vcd");
         $dumpvars(0, tb_loopback);
 
-        // 1. Reset Sequence
         $display("[%0t] TB: Resetting system...", $time);
         rstn = 0; 
         repeat(20) @(posedge clk_100m);
         rstn = 1; 
-        repeat(50) @(posedge clk_100m);
+        repeat(100) @(posedge clk_100m);
 
         // 2. Static ARP Resolution
         $display("[%0t] TB: Sending ARP Request to DUT...", $time);
@@ -103,38 +107,63 @@ module tb_loopback();
         $display("[%0t] TB: Waiting for ARP Reply...", $time);
         wait_for_arp_reply(28, exp_arp_reply); 
 
-        repeat(20) @(posedge clk_100m);
-
-        // 3. Dynamic Random UDP Loopback Test
-        $display("\n[%0t] TB: Starting Continuous Random UDP Loopback Test...", $time);
-        
-        for (int p = 1; p <= 100; p++) begin
-            int rand_len = $urandom_range(18, 256); // Using a reasonable length for simulation speed
-            logic pkt_success;
-
-            $display("[%0t] --- Sending Packet %0d/100 (Payload size: %0d bytes) ---", $time, p, rand_len);
-            
-            send_and_verify_random_udp(rand_len, pkt_success);
-
-            if (!pkt_success) begin
-                $display("\n[%0t] FATAL ERROR: Packet %0d failed or timed out! Halting simulation.", $time, p);
-                $stop; // Halts so you can check the waveform exactly where it died!
-            end
-            
-            // Random IPG (Inter-Packet Gap) to simulate network jitter
-            repeat($urandom_range(10, 50)) @(posedge clk_100m);
-        end
-
-        $display("\n[%0t] TB: SIMULATION SUCCESSFUL - All 100 random packets looped back flawlessly!", $time);
         repeat(50) @(posedge clk_100m);
+
+        // 3. FULL DUPLEX Dynamic Random UDP BURST Test
+        $display("\n[%0t] TB: Starting FULL DUPLEX Burst UDP Loopback Test...", $time);
+        
+        fork
+            // ---------------------------------------------------------
+            // THREAD 1: TRANSMITTER
+            // ---------------------------------------------------------
+            begin
+                for (int p = 1; p <= 100; p++) begin
+                    int rand_len = $urandom_range(18, 256);
+                    $display("[%0t] --- TX: Injecting Packet %0d/100 (Payload size: %0d bytes) ---", $time, p, rand_len);
+                    
+                    generate_and_send_udp(rand_len);
+
+                    // Zero IPG on the AXI-Stream side! Blast them continuously to 
+                    // ensure the DUT is receiving and transmitting simultaneously.
+                    @(posedge clk_100m);
+                end
+                $display("[%0t] TB: TX Thread completed packet injection.", $time);
+            end
+
+            // ---------------------------------------------------------
+            // THREAD 2: RECEIVER
+            // ---------------------------------------------------------
+            begin
+                for (int p = 1; p <= 100; p++) begin
+                    logic pkt_success;
+                    payload_arr_t exp_payload;
+
+                    wait(exp_payload_queue.size() > 0);
+                    exp_payload = exp_payload_queue.pop_front();
+                    
+                    receive_looped_udp_dynamic(exp_payload.size(), exp_payload, pkt_success);
+
+                    if (!pkt_success) begin
+                        $display("\n[%0t] FATAL ERROR: Loopback check failed on packet %0d! Halting.", $time, p);
+                        $stop;
+                    end
+                end
+                $display("[%0t] TB: RX Thread verified all packets successfully.", $time);
+            end
+        join
+
+        $display("\n[%0t] TB: SIMULATION SUCCESSFUL - All 100 packets survived Full-Duplex line-rate stress!", $time);
+        repeat(100) @(posedge clk_100m);
         $finish;
     end
 
-    
-    // Dynamically builds IP/UDP headers, calculates checksums, and monitors loopback
-    task automatic send_and_verify_random_udp(input int payload_len, output logic success);
+    // ==========================================
+    // Synchronous AXI-Stream Tasks 
+    // ==========================================
+
+task automatic generate_and_send_udp(input int payload_len);
         logic [7:0] tx_pkt [];
-        logic [7:0] exp_payload [];
+        payload_arr_t exp_payload;
         int ip_len, udp_len;
         logic [15:0] ip_csum;
         logic [31:0] csum_acc;
@@ -174,31 +203,36 @@ module tb_loopback();
             exp_payload[i] = tx_pkt[28+i];
         end
 
-        success = 0;
+        exp_payload_queue.push_back(exp_payload);
 
-        // 4. Send and Monitor concurrently (Wait for both to finish)
-        fork
-            begin
-                send_ip_to_mac(ip_len, tx_pkt, DUT_MAC);
-            end
-            begin
-                receive_looped_udp_dynamic(payload_len, exp_payload, success);
-            end
-        join
-        
+        // --- PRINT INJECTED PACKET ---
+        $display("\n===========================================================");
+        $display("[%0t ns] ---> TB INJECTING UDP PACKET", $time);
+        $display("    Length : %0d bytes (Total IP Packet)", ip_len);
+        $write("    Data   : ");
+        for (int i = 28; i < ip_len; i++) begin
+            $write("%02h ", tx_pkt[i]);
+            if ((i + 1) % 16 == 0 && i != ip_len - 1) $write("\n             ");
+        end
+        $display("\n===========================================================\n");
+
+        send_ip_to_mac(ip_len, tx_pkt, DUT_MAC);
     endtask
-    // Receiver task that strips headers and verifies dynamic payload
+
     task automatic receive_looped_udp_dynamic(input int expected_len, input logic [7:0] exp_payload [], output logic success);
         logic done = 0;
         int k = 0;
         int p_idx = 0;
-        tb_ip_rx_tready <= 1; 
+        logic [7:0] rx_pkt_cap [$]; // Buffer to capture packet for printing
         
         while (!done) begin
+            // Introduce random backpressure to heavily stress the DUT's TX state machine
+            tb_ip_rx_tready <= ($urandom_range(0, 10) > 2); // 70% ready
+            
             @(posedge clk_100m);
             if (tb_ip_rx_tvalid && tb_ip_rx_tready) begin
-                
-                // Bytes 0-19: IP Header. Bytes 20-27: UDP Header. Bytes 28+: Payload
+                rx_pkt_cap.push_back(tb_ip_rx_tdata); // Capture byte for print
+
                 if (k >= 28) begin
                     p_idx = k - 28;
                     if (p_idx < expected_len) begin
@@ -216,55 +250,54 @@ module tb_loopback();
                         $display("[%0t] TB: LENGTH ERR - Expected %0d bytes, got %0d", $time, expected_len, p_idx + 1);
                         success = 1'b0;
                     end
+
+                    // --- PRINT RECEIVED PACKET ---
+                    $display("\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+                    $display("[%0t ns] <--- TB RECEIVED LOOPBACK PACKET", $time);
+                    $display("    Length : %0d bytes", rx_pkt_cap.size());
+                    $write("    Data   : ");
+                    foreach(rx_pkt_cap[i]) begin
+                        $write("%02h ", rx_pkt_cap[i]);
+                        if ((i + 1) % 16 == 0 && i != rx_pkt_cap.size() - 1) $write("\n             ");
+                    end
+                    $display("\n<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+
                     done = 1'b1;
                 end
                 k++;
             end
         end
-        tb_ip_rx_tready <= 0;
+        tb_ip_rx_tready <= 1'b1; // Leave ready high between packets
     endtask
 
-    // --- Unmodified Original Tasks ---
-    task automatic send_arp_to_mac(input int len, input logic [7:0] pkt [], input logic [47:0] dest_mac);
-        int actual_len;
-        
-        // Enforce 60-byte Ethernet minimum (64 bytes minus 4-byte FCS)
-        actual_len = (len < 60) ? 60 : len;
-        
-        tb_arp_tx_tuser <= dest_mac;
-        
-        for (int i = 0; i < actual_len; i++) begin
-            @(negedge clk_100m);
-            
-            // If we run out of actual packet data, start injecting 0x00 padding
-            if (i < len) begin
-                tb_arp_tx_tdata <= pkt[i];
-            end else begin
-                tb_arp_tx_tdata <= 8'h00; 
-            end
-            
-            tb_arp_tx_tvalid <= 1'b1; 
-            tb_arp_tx_tlast  <= (i == actual_len - 1);
-            
-            @(posedge clk_100m);
-            while (!tb_arp_tx_tready) @(negedge clk_100m);
-        end
-        
-        @(negedge clk_100m); 
-        tb_arp_tx_tvalid <= 1'b0; 
-        tb_arp_tx_tlast  <= 1'b0;
-    endtask
-    
-
+    // Fully synchronous AXI-Stream driver
     task automatic send_ip_to_mac(input int len, input logic [7:0] pkt [], input logic [47:0] dest_mac);
+        @(posedge clk_100m);
         tb_ip_tx_tuser <= dest_mac;
-        for (int i=0; i<len; i++) begin
-            @(negedge clk_100m);
-            tb_ip_tx_tdata  <= pkt[i]; tb_ip_tx_tvalid <= 1'b1; tb_ip_tx_tlast  <= (i == len-1);
+        for (int i = 0; i < len; i++) begin
+            tb_ip_tx_tdata  <= pkt[i];
+            tb_ip_tx_tvalid <= 1'b1;
+            tb_ip_tx_tlast  <= (i == len - 1);
             @(posedge clk_100m);
-            while (!tb_ip_tx_tready) @(negedge clk_100m);
+            while (!tb_ip_tx_tready) @(posedge clk_100m);
         end
-        @(negedge clk_100m); tb_ip_tx_tvalid <= 0; tb_ip_tx_tlast <= 0;
+        tb_ip_tx_tvalid <= 1'b0;
+        tb_ip_tx_tlast  <= 1'b0;
+    endtask
+
+    task automatic send_arp_to_mac(input int len, input logic [7:0] pkt [], input logic [47:0] dest_mac);
+        int actual_len = (len < 60) ? 60 : len;
+        @(posedge clk_100m);
+        tb_arp_tx_tuser <= dest_mac;
+        for (int i = 0; i < actual_len; i++) begin
+            tb_arp_tx_tdata  <= (i < len) ? pkt[i] : 8'h00;
+            tb_arp_tx_tvalid <= 1'b1;
+            tb_arp_tx_tlast  <= (i == actual_len - 1);
+            @(posedge clk_100m);
+            while (!tb_arp_tx_tready) @(posedge clk_100m);
+        end
+        tb_arp_tx_tvalid <= 1'b0;
+        tb_arp_tx_tlast  <= 1'b0;
     endtask
 
     task automatic wait_for_arp_reply(input int len, input logic [7:0] exp []);

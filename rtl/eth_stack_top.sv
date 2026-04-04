@@ -1,5 +1,6 @@
 `timescale 1ns / 1ps
 
+
 module eth_stack_top (
     // --- System Clock and Reset ---
     input  logic        clk_i,
@@ -27,9 +28,11 @@ module eth_stack_top (
     output logic        pkt_drop_o,
 
     // UDP RX to App
+    // Data is streaming only ! 
+    // App layer must assert always rx tready or data will get corrupted
     input  logic        app_rx_tready,
     output logic [7:0]  app_rx_tdata,
-    output logic        app_rx_tvalid,
+    output logic        app_rx_tvalid, 
     output logic        app_rx_tlast,
     output logic [47:0] app_rx_tuser, // {Source IP, Source Port}
 

@@ -1,7 +1,8 @@
-// Loopback test
+`timescale 1ns/1ps
+
 module top_loopback (
-    // --- Physical RMII Pins - --
-    input  logic        rst,
+    // --- Physical RMII Pins ---
+    input  logic        rst,       // Active-low reset
     input  logic        netrmii_clk50m,
     output logic        phyrst,
     output logic [1:0]  netrmii_txd,
@@ -13,16 +14,13 @@ module top_loopback (
 );
 
     // --- Reset Generation ---
-    logic [7:0] rst_cnt = 0;
+    assign phyrst = rst;
 
-    assign phyrst = rst; // Release PHY reset when system is ready
-
-    // Tie off unused MDIO interface
     assign netrmii_mdc  = 1'b0;
     assign netrmii_mdio = 1'bz;
 
     // --- System Configuration Constants ---
-    logic [31:0] local_ip  = {8'd192, 8'd168, 8'd1, 8'd10}; // 192.168.1.10
+    logic [31:0] local_ip  = {8'd192, 8'd168, 8'd1, 8'd10};
     logic [47:0] local_mac = 48'h00_1A_2B_3C_4D_5E;
     logic [15:0] local_port = 16'd5005;
 
@@ -36,15 +34,12 @@ module top_loopback (
     logic [7:0]  app_rx_tdata;
     logic [47:0] app_rx_tuser;
 
-    logic        port_en;
-    logic [15:0] listen_port;
-
     logic clk125;
 
-   Gowin_rPLL pll(
-       .clkout(clk125), //output clkout
-       .clkin(netrmii_clk50m) //input clkin
-   );
+    Gowin_rPLL pll(
+       .clkout(clk125),
+       .clkin(netrmii_clk50m)
+    );
 
     // --- Instantiate Ethernet Stack ---
     eth_stack_top u_eth_stack (
@@ -52,15 +47,13 @@ module top_loopback (
         .rstn_i        (rst),
         .clk_50M_i     (netrmii_clk50m),
         .rstn_500M_i   (rst),
-
         .local_ip_i    (local_ip),
         .local_mac_i   (local_mac),
-
         .rmii_txd_o    (netrmii_txd),
         .rmii_tx_en_o  (netrmii_txen),
         .rmii_rxd_i    (netrmii_rxd),
         .rmii_crs_dv_i (netrmii_rx_crs),
-        .rmii_rxer_i   (1'b0), // Tied to 0 (not mapped in your CST)
+        .rmii_rxer_i   (1'b0),
 
         .app_tx_tdata  (app_tx_tdata),
         .app_tx_tvalid (app_tx_tvalid),
@@ -74,101 +67,135 @@ module top_loopback (
         .app_rx_tvalid (app_rx_tvalid),
         .app_rx_tlast  (app_rx_tlast),
         .app_rx_tuser  (app_rx_tuser),
-
+        
         .port_en_i     (1'b1),
         .port_o        ()
     );
-    logic [31:0] rx_pkt_cnt;
-    logic [31:0] tx_pkt_cnt;
-    
-    // Track completed RX and TX packet transfers using the AXI-Stream handshake
+
+    // Payload FIFO (9-bit width: 8-bit data + 1-bit tlast)
+    logic       payload_wfull, payload_walmost_full, payload_empty;
+    logic       payload_wen, payload_rden;
+    logic [8:0] payload_din, payload_dout;
+
+    fifo_async #(
+        .DATA_WIDTH(9),
+        .ADDR_WIDTH(11)
+    ) u_payload_fifo (
+        .wclk_i(clk125), .wrstn_i(rst), .wen_i(payload_wen), .din_i(payload_din),
+        .wfull(payload_wfull), .walmost_full(payload_walmost_full),
+        .rclk_i(clk125), .rrstn_i(rst), .rden_i(payload_rden), .dout_o(payload_dout),
+        .empty_o(payload_empty)
+    );
+
+    // Metadata FIFO (80-bit width: TX tuser header info)
+    logic        meta_wfull, meta_walmost_full, meta_empty;
+    logic        meta_wen, meta_rden;
+    logic [79:0] meta_din, meta_dout;
+
+    fifo_async #(
+        .DATA_WIDTH(80),
+        .ADDR_WIDTH(5)  // Depth: 32 (Can track 32 in-flight packets)
+    ) u_meta_fifo (
+        .wclk_i(clk125), .wrstn_i(rst), .wen_i(meta_wen), .din_i(meta_din),
+        .wfull(meta_wfull), .walmost_full(meta_walmost_full),
+        .rclk_i(clk125), .rrstn_i(rst), .rden_i(meta_rden), .dout_o(meta_dout),
+        .empty_o(meta_empty)
+    );
+
+
+    logic [15:0] rx_pkt_len;
+
+    // Throttle reception if either FIFO is nearing capacity
+    assign app_rx_tready = !payload_walmost_full && !meta_walmost_full;
+
+    assign payload_wen = app_rx_tvalid && app_rx_tready;
+    assign payload_din = {app_rx_tlast, app_rx_tdata};
+
     always_ff @(posedge clk125) begin
         if (!rst) begin
-            rx_pkt_cnt <= '0;
-            tx_pkt_cnt <= '0;
+            rx_pkt_len <= '0;
+            meta_wen   <= 1'b0;
+            meta_din   <= '0;
         end else begin
+            meta_wen <= 1'b0; // Default to zero
 
-            if (app_rx_tvalid && app_rx_tready && app_rx_tlast) begin
-                rx_pkt_cnt <= rx_pkt_cnt + 1'b1;
-            end
-            
-            if (app_tx_tvalid && app_tx_tready && app_tx_tlast) begin
-                tx_pkt_cnt <= tx_pkt_cnt + 1'b1;
+            if (payload_wen) begin
+                rx_pkt_len <= rx_pkt_len + 16'd1;
+
+                // When a packet completes, construct the TX header and push to Meta FIFO
+                if (app_rx_tlast) begin
+                    meta_wen <= 1'b1;
+                    meta_din <= {
+                        app_rx_tuser[47:16], // Route Back: Dest IP = Sender's IP
+                        local_port,          // Route Back: Src Port = Our local port
+                        app_rx_tuser[15:0],  // Route Back: Dest Port = Sender's Port
+                        rx_pkt_len + 16'd1   // Payload Length
+                    };
+                    rx_pkt_len <= '0; // Reset length for next packet
+                end
             end
         end
     end
 
-    // --- UDP Store-and-Forward Loopback Logic ---
-    typedef enum logic [1:0] {IDLE, RX_PKT, TX_PKT} state_t;
-    state_t state;
+    typedef enum logic [1:0] {TX_IDLE, TX_POP_META, TX_LOAD_META, TX_STREAM} tx_state_t;
+    tx_state_t tx_state;
 
-    logic [7:0]  pkt_buffer [0:2047]; // 2KB buffer for MTU
-    logic [10:0] rx_ptr;
-    logic [10:0] tx_ptr;
-    logic [10:0] pkt_length;
-    logic [47:0] saved_rx_tuser;
+    logic [15:0] tx_bytes_left;
+    logic        rden_q;
+    logic        pipeline_en;
+    assign pipeline_en = !app_tx_tvalid || app_tx_tready;
 
-    assign app_rx_tready = (state == IDLE) || (state == RX_PKT);
+    assign payload_rden = (tx_state == TX_STREAM) && (tx_bytes_left > 0) && pipeline_en;
 
     always_ff @(posedge clk125) begin
         if (!rst) begin
-            state         <= IDLE;
+            tx_state      <= TX_IDLE;
+            meta_rden     <= 1'b0;
+            rden_q        <= 1'b0;
             app_tx_tvalid <= 1'b0;
             app_tx_tlast  <= 1'b0;
-            rx_ptr        <= '0;
-            tx_ptr        <= '0;
+            app_tx_tdata  <= '0;
+            app_tx_tuser  <= '0;
+            tx_bytes_left <= '0;
         end else begin
-            case (state)
-                IDLE: begin
-                    rx_ptr <= '0;
-                    if (app_rx_tvalid && app_rx_tready) begin
-                        pkt_buffer[rx_ptr]  <= app_rx_tdata;
-                        saved_rx_tuser <= app_rx_tuser; // Capture {Source IP, Source Port}
-                        rx_ptr         <= 11'd1;
-                        state          <= app_rx_tlast ? TX_PKT : RX_PKT;
-                        pkt_length     <= app_rx_tlast ? 11'd1 : '0;
+            meta_rden <= 1'b0; // Default
+
+            if (pipeline_en) begin
+                rden_q        <= payload_rden;
+                app_tx_tvalid <= rden_q;
+                app_tx_tdata  <= payload_dout[7:0];
+                app_tx_tlast  <= payload_dout[8];
+            end
+
+            case (tx_state)
+                TX_IDLE: begin
+                    if (!meta_empty) begin
+                        meta_rden <= 1'b1;
+                        tx_state  <= TX_POP_META;
                     end
                 end
 
-                RX_PKT: begin
-                    if (app_rx_tvalid && app_rx_tready) begin
-                        pkt_buffer[rx_ptr] <= app_rx_tdata;
-                        rx_ptr             <= rx_ptr + 11'd1;
-                        if (app_rx_tlast) begin
-                            pkt_length <= rx_ptr + 11'd1;
-                            state      <= TX_PKT;
-                            tx_ptr     <= '0;
-                        end
-                    end
+                TX_POP_META: begin
+
+                    tx_state <= TX_LOAD_META;
                 end
 
-                TX_PKT: begin
-                    app_tx_tvalid <= 1'b1;
-                    app_tx_tdata  <= pkt_buffer[tx_ptr];
-                    app_tx_tlast  <= (tx_ptr == (pkt_length - 11'd1));
-                    
-                    // Route back to sender: [Dest IP (32), Src Port (16), Dest Port (16), Length (16)]
-                    app_tx_tuser  <= {
-                        saved_rx_tuser[47:16], // Dest IP = Sender's IP
-                        local_port,              // Src Port = Our local port
-                        saved_rx_tuser[15:0],  // Dest Port = Sender's Port
-                        16'(pkt_length)        // Payload Length
-                    };
+                TX_LOAD_META: begin
+                    app_tx_tuser  <= meta_dout;
+                    tx_bytes_left <= meta_dout[15:0]; 
+                    tx_state      <= TX_STREAM;
+                end
 
-                    if (app_tx_tready && app_tx_tvalid) begin
-                        if (app_tx_tlast) begin
-                            app_tx_tvalid <= 1'b0;
-                            app_tx_tlast  <= 1'b0;
-                            state         <= IDLE;
-                        end else begin
-                            tx_ptr <= tx_ptr + 11'd1;
-                        end
+                TX_STREAM: begin
+                    if (payload_rden) begin
+                        tx_bytes_left <= tx_bytes_left - 1'b1;
+                    end
+
+                    if ((tx_bytes_left == 0) && !rden_q && pipeline_en) begin
+                        tx_state <= TX_IDLE;
                     end
                 end
-                
-                default: state <= IDLE;
             endcase
         end
     end
-
 endmodule
