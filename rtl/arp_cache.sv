@@ -64,14 +64,14 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
         rd_mac_o <= 48'h0;
         select_rd <= '0;
     end else begin
-        // Default values for the clock cycle
         select_rd <= '0;
-        miss_o   <= flags[select_rd] == '0;
+        miss_o   <= 1'b1;
         rd_mac_o <= 48'h0;
 
         for (int i = 0; i < 8; i++) begin
             if (flags[i] && (cache[i][31:0] == rd_ip_i)) begin
                 select_rd <= i;
+                miss_o <= 1'b0;
             end
         end
         

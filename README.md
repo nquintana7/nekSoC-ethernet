@@ -20,7 +20,6 @@ All data is cut-through/streaming, there is no buffering/FIFO except at the TX C
 - Tested with a Python script blasting random UDP packets directly from a PC to the FPGA (tested with 100k packets). The FPGA runs a top loopback module. The script waits for the successful loopback return before dispatching the next packet.
 
 ### To-Do List
-- ARP request when arp cache miss not done yet
 - Test packet burst loopback
 - Implement AXI4-Lite registers for dynamic configuration of:
     * Local MAC & IPv4 Address

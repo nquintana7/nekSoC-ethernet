@@ -55,7 +55,6 @@ assign rd_ip_o = dest_ip_reg;
 
 assign m_axis_tdata = (state == DATA) ? s_axis_tdata : header_shift_reg[159:152];
 assign m_axis_tlast  = (state == DATA) ? s_axis_tlast : 1'b0;
-assign s_axis_tready = (state == DATA ) ?  m_axis_tready : 1'b0;
 
 always_comb begin // for now these values are fixed
     constant_sum = 20'h4500 +
@@ -64,11 +63,15 @@ always_comb begin // for now these values are fixed
                    local_ip_i[31:16] + 
                    local_ip_i[15:0];
     m_axis_tvalid = 1'b0;
+    s_axis_tready = 1'b0;
     if (state == HEADER) begin
         m_axis_tvalid = 1'b1;   
     end else if (state == DATA) begin
         m_axis_tvalid = s_axis_tvalid;
-    end 
+        s_axis_tready = m_axis_tready;
+    end else if (state == DROP) begin
+        s_axis_tready = 1'b1;
+    end
 end
 
 always_ff @(posedge clk_i or negedge rstn_i) begin
@@ -84,12 +87,12 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
     end else begin
         packet_drop_o <= 1'b0;
         m_axis_tuser <= rd_mac_i;
-
+        trigger_request_o <= 1'b0;
         case (state)
 
             IDLE : begin
                 byte_cnt <= 5'd0;
-                trigger_request_o <= 1'b0;
+                
                 if (s_axis_tvalid) begin
                     header_shift_reg.version      <= 4'h4;
                     header_shift_reg.ihl          <= 4'h5;
@@ -145,7 +148,7 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
             end
 
             DROP :begin
-                state <= IDLE;
+                state <= (s_axis_tready & s_axis_tvalid & s_axis_tlast) ? IDLE : state; 
             end 
 
             default : state <= IDLE;

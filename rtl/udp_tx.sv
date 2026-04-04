@@ -69,17 +69,10 @@ always_ff @(posedge clk_i or negedge rstn_i) begin
                 state <= (m_axis_tready & m_axis_tvalid & m_axis_tlast) ? IDLE : state; 
             end
             
-            DROP : begin // assumes upper layer also gets drop signal
-                state <= IDLE;   
-            end
-
             default : state <= IDLE;
 
         endcase
 
-        if (packet_drop_i) begin
-            state <= DROP;
-        end
         
     end
 end
